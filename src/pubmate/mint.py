@@ -4,6 +4,7 @@ import re
 import json
 
 from typing import Optional, Set
+from ulid import ULID
 from uuid import uuid4
 
 # Configure logging
@@ -32,7 +33,7 @@ class IdentifierGenerator:
             return True
         return False
 
-    def is_valid_id(self, key: str, method: str = "hash") -> bool:
+    def is_valid_id(self, key: str, method: str = "ulid") -> bool:
         # Check if key starts with namespace
         if not key.startswith(self.namespace):
             return False
@@ -45,6 +46,8 @@ class IdentifierGenerator:
             unique_pattern = r"^[0-9a-f]{8}$"  # 8 hex chars
         elif method == "hash":
             unique_pattern = r"^[0-9a-f]{10}$"  # 10 hex chars
+        elif method == "ulid":
+            unique_pattern = r"^[0-9A-HJKMNP-TV-Z]{26}$"  # full ULID
         else:
             raise NotImplementedError
 
@@ -74,7 +77,7 @@ class IdentifierGenerator:
     def generate_id(
         self,
         entity: dict,
-        method: str = "hash",
+        method: str = "ulid",
         check_collision: bool = True,
         max_attempts: int = 10,
         preflabel: str = "name",
@@ -84,7 +87,7 @@ class IdentifierGenerator:
 
         Args:
             term_name: The name of the term
-            method: ID generation method ('uuid', 'hash', 'sequential', or 'slug')
+            method: ID generation method ('ulid', 'uuid', or 'hash')
             check_collision: Whether to check for collisions
             max_attempts: Maximum number of attempts to generate a unique ID
 
@@ -97,11 +100,13 @@ class IdentifierGenerator:
             # Generate unique part based on method
             if method == "uuid":
                 unique_part = str(uuid4())[:8]  # First 8 chars of UUID
+            elif method == "ulid":
+                unique_part = str(ULID())
 
             elif method == "hash":
                 # Create a hash of the term name, possibly with a salt for retry attempts
                 if attempts > 0:
-                    salted_entity = entity["_collision":attempts]
+                    salted_entity = {**entity, "_collision": attempts}
                 else:
                     salted_entity = entity
 
@@ -109,7 +114,7 @@ class IdentifierGenerator:
                 unique_part = hash_str[:10]
 
             else:
-                raise ValueError(f"Unknown method: {method}. Available methods: uuid, hash, sequential, slug")
+                raise ValueError(f"Unknown method: {method}. Available methods: ulid, uuid, hash")
 
             # Construct the full identifier
             if self.type_prefix is None:
@@ -130,6 +135,7 @@ class IdentifierGenerator:
             attempts += 1
 
         # If we exhausted all attempts, raise an error
+        label_value = entity.get(preflabel, "<missing>")
         raise RuntimeError(
-            f"Could not generate a unique identifier for '{getattr(entity, preflabel)}' after {max_attempts} attempts"
+            f"Could not generate a unique identifier for '{label_value}' after {max_attempts} attempts"
         )

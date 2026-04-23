@@ -18,24 +18,46 @@ logger = logging.getLogger(__name__)
     type=click.Path(exists=True, file_okay=False),
     help="Folder containing .ttl assertion files.",
 )
-@click.option("--orcid-id", required=True, help="ORCID identifier of the nanopub author.")
-@click.option("--name", required=True, help="Full name of the nanopub author.")
+@click.option("--orcid-id", required=False, help="ORCID identifier of the nanopub author.")
+@click.option("--name", required=False, help="Full name of the nanopub author.")
 @click.option(
-    "--private-key", required=True, type=click.Path(exists=True, dir_okay=False), help="Path to the private key file."
+    "--private-key", required=False, type=click.Path(exists=True, dir_okay=False), help="Path to the private key file."
 )
 @click.option(
-    "--public-key", required=True, type=click.Path(exists=True, dir_okay=False), help="Path to the public key file."
+    "--public-key", required=False, type=click.Path(exists=True, dir_okay=False), help="Path to the public key file."
 )
-@click.option("--intro-nanopub-uri", required=True, help="URI of the introduction nanopublication.")
+@click.option("--intro-nanopub-uri", required=False, help="URI of the introduction nanopublication.")
 @click.option("--dry-run", is_flag=True, help="Run without publishing to the Nanopub network.")
+@click.option(
+    "--use-testsuite-keys",
+    is_flag=True,
+    help="Use nanopub-testsuite-connector key material instead of personal key files (dry-run only).",
+)
+@click.option(
+    "--testsuite-key",
+    default="rsa-key1",
+    show_default=True,
+    hidden=True,
+    help="Advanced override: testsuite key alias.",
+)
+@click.option(
+    "--testsuite-ref",
+    default="main",
+    show_default=True,
+    hidden=True,
+    help="Advanced override: testsuite git ref or commit SHA.",
+)
 def cli(
     assertion_folder: str,
-    orcid_id: str,
-    name: str,
-    private_key: str,
-    public_key: str,
-    intro_nanopub_uri: str,
+    orcid_id: str | None,
+    name: str | None,
+    private_key: str | None,
+    public_key: str | None,
+    intro_nanopub_uri: str | None,
     dry_run: bool,
+    use_testsuite_keys: bool,
+    testsuite_key: str,
+    testsuite_ref: str,
 ):
     """Publish a sequence of assertion nanopublications."""
 
@@ -55,14 +77,36 @@ def cli(
         loaded_assertions.append(g)
         logger.debug(f"Loaded graph from {ttl_file}")
 
-    nanopub_generator = NanopubGenerator(
-        orcid_id=orcid_id,
-        name=name,
-        private_key=private_key,
-        public_key=public_key,
-        intro_nanopub_uri=intro_nanopub_uri,
-        test_server=dry_run,
-    )
+    if use_testsuite_keys:
+        if not dry_run:
+            raise click.ClickException("--use-testsuite-keys is only supported with --dry-run.")
+        nanopub_generator = NanopubGenerator.from_testsuite_connector(
+            key_name=testsuite_key,
+            suite_ref=testsuite_ref,
+            test_server=True,
+        )
+    else:
+        required_values = {
+            "--orcid-id": orcid_id,
+            "--name": name,
+            "--private-key": private_key,
+            "--public-key": public_key,
+            "--intro-nanopub-uri": intro_nanopub_uri,
+        }
+        missing = [flag for flag, value in required_values.items() if not value]
+        if missing:
+            raise click.ClickException(
+                "Missing required options in manual-key mode: " + ", ".join(missing)
+            )
+
+        nanopub_generator = NanopubGenerator(
+            orcid_id=orcid_id,
+            name=name,
+            private_key=private_key,
+            public_key=public_key,
+            intro_nanopub_uri=intro_nanopub_uri,
+            test_server=dry_run,
+        )
 
     nanopub_generator.publish_sequence(
         loaded_assertions,

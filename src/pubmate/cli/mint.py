@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 @click.option("--target", "-t", "target_name", required=True, help="Name of the target entity list in the data file.")
 @click.option("--namespace", required=True, help="Namespace prefix used to create identifiers.")
 @click.option("--id-key", default="id", help="Field name containing the identifier.")
-@click.option("--method", default="hash", type=click.Choice(["uuid", "hash"]), help="ID generation method.")
+@click.option("--method", default="ulid", type=click.Choice(["ulid", "uuid", "hash"]), help="ID generation method.")
 @click.option(
     "--output", "output_path", default=None, help="Optional output path. Defaults to overwriting the input file."
 )

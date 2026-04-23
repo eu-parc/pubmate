@@ -1,7 +1,7 @@
-import itertools
 import logging
+from pathlib import Path
+
 import nanopub
-import nanopub.client
 import rdflib
 
 from typing import Optional
@@ -17,10 +17,10 @@ class NanopubGenerator:
         self,
         orcid_id: str,
         name: str,
-        private_key: str,
-        public_key: str,
-        intro_nanopub_uri: str,
+        private_key: str | Path,
+        public_key: str | Path,
         test_server: bool,
+        intro_nanopub_uri: str | None = None,
     ):
         self.profile = nanopub.Profile(
             orcid_id=orcid_id,
@@ -39,9 +39,47 @@ class NanopubGenerator:
         self.test_server = test_server
         self.client = None
 
+    @classmethod
+    def from_testsuite_connector(
+        cls,
+        key_name: str = "rsa-key1",
+        suite_ref: str = "main",
+        orcid_id: str = "https://orcid.org/0000-0002-1825-0097",
+        name: str = "Pubmate Test Publisher",
+        intro_nanopub_uri: str | None = None,
+        test_server: bool = True,
+    ) -> "NanopubGenerator":
+        """
+        Construct a NanopubGenerator from a keypair managed by nanopub-testsuite-connector.
+        This avoids requiring repository-specific secrets for test-server publishing.
+        """
+        try:
+            from nanopub_testsuite_connector import NanopubTestSuite
+        except ImportError as exc:
+            raise ImportError(
+                "nanopub-testsuite-connector is required for from_testsuite_connector(). "
+                "Install it in your test/development environment."
+            ) from exc
+
+        suite: NanopubTestSuite
+        if suite_ref == "main":
+            suite = NanopubTestSuite.get_latest()
+        else:
+            suite = NanopubTestSuite.get_at_commit(suite_ref)
+
+        keypair = suite.get_signing_key(key_name)
+        return cls(
+            orcid_id=orcid_id,
+            name=name,
+            private_key=keypair.private_key,
+            public_key=keypair.public_key,
+            intro_nanopub_uri=intro_nanopub_uri,
+            test_server=test_server,
+        )
+
     def get_client(self):
         if self.client is None:
-            self.client = nanopub.client.Client()
+            self.client = nanopub.NanopubClient(use_test_server=self.test_server)
         return self.client
 
     def create_nanopub(self, assertion: rdflib.Graph) -> nanopub.Nanopub:
@@ -77,12 +115,13 @@ class NanopubGenerator:
             else:
                 client = self.get_client()
                 ret = client.find_nanopubs_with_pattern(
-                    object=uri,
+                    obj=uri,
                 )
                 first = next(ret, None)
                 return first is not None
         except Exception as e:
             logger.error(f"Error in check_nanopub_existence: {e}")
+            return False
 
     def publish_single(
         self,
@@ -118,8 +157,11 @@ class NanopubGenerator:
         try:
             np_uris = []
             if supersedes is None:
-                supersedes = []
-            for statement, supersedes_uri in itertools.zip_longest(to_publish, supersedes):
+                supersedes = [None] * len(to_publish)
+            elif len(supersedes) != len(to_publish):
+                raise ValueError("Length mismatch: 'supersedes' must match the number of assertion graphs.")
+
+            for statement, supersedes_uri in zip(to_publish, supersedes):
                 np_uri = self.publish_single(statement, supersedes_uri, dry_run=dry_run)
                 np_uris.append(np_uri)
 
