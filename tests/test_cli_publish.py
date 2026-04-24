@@ -21,6 +21,7 @@ def test_publish_cli_uses_testsuite_keys_in_dry_run(tmp_path, monkeypatch) -> No
         def publish_sequence(self, assertions, dry_run):
             calls["assertion_count"] = len(assertions)
             calls["dry_run"] = dry_run
+            return ["https://w3id.org/np/RA-test-1"]
 
     def fake_from_testsuite_connector(key_name: str, suite_ref: str, test_server: bool):
         calls["key_name"] = key_name
@@ -56,6 +57,48 @@ def test_publish_cli_uses_testsuite_keys_in_dry_run(tmp_path, monkeypatch) -> No
         "assertion_count": 1,
         "dry_run": True,
     }
+
+
+def test_publish_cli_writes_term_to_nanopub_mapping_file(tmp_path, monkeypatch) -> None:
+    assertion_dir = tmp_path / "assertions"
+    assertion_dir.mkdir()
+    _write_minimal_assertion(assertion_dir, "term-b.ttl")
+    _write_minimal_assertion(assertion_dir, "term-a.ttl")
+    output_file = tmp_path / "redirects" / "mapping.tsv"
+
+    class DummyGenerator:
+        def publish_sequence(self, assertions, dry_run):
+            assert len(assertions) == 2
+            assert dry_run is True
+            return [
+                "https://w3id.org/np/RA-term-a",
+                "https://w3id.org/np/RA-term-b",
+            ]
+
+    monkeypatch.setattr(
+        publish_cli.NanopubGenerator,
+        "from_testsuite_connector",
+        staticmethod(lambda key_name, suite_ref, test_server: DummyGenerator()),
+    )
+
+    result = CliRunner().invoke(
+        publish_cli.cli,
+        [
+            "--assertion-folder",
+            str(assertion_dir),
+            "--dry-run",
+            "--use-testsuite-keys",
+            "--redirect-output-file",
+            str(output_file),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert output_file.read_text(encoding="utf-8") == (
+        "term_id\tnanopub_uri\n"
+        "term-a\thttps://w3id.org/np/RA-term-a\n"
+        "term-b\thttps://w3id.org/np/RA-term-b\n"
+    )
 
 
 def test_publish_cli_rejects_testsuite_keys_without_dry_run(tmp_path) -> None:

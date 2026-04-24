@@ -10,6 +10,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+def _write_redirect_mapping(output_path: pathlib.Path, mappings: list[tuple[str, str]]) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        "term_id\tnanopub_uri\n"
+        + "".join(f"{term_id}\t{nanopub_uri}\n" for term_id, nanopub_uri in mappings),
+        encoding="utf-8",
+    )
+
+
 @click.command()
 @click.option(
     "--assertion-folder",
@@ -28,6 +37,12 @@ logger = logging.getLogger(__name__)
 )
 @click.option("--intro-nanopub-uri", required=False, help="URI of the introduction nanopublication.")
 @click.option("--dry-run", is_flag=True, help="Run without publishing to the Nanopub network.")
+@click.option(
+    "--redirect-output-file",
+    required=False,
+    type=click.Path(dir_okay=False, path_type=pathlib.Path),
+    help="Optional path to write the term ID to nanopub URI mapping for redirect/.htaccess generation.",
+)
 @click.option(
     "--use-testsuite-keys",
     is_flag=True,
@@ -55,6 +70,7 @@ def cli(
     public_key: str | None,
     intro_nanopub_uri: str | None,
     dry_run: bool,
+    redirect_output_file: pathlib.Path | None,
     use_testsuite_keys: bool,
     testsuite_key: str,
     testsuite_ref: str,
@@ -71,10 +87,12 @@ def cli(
     logger.info(f"Loading {len(ttl_files)} assertion graphs from: {assertion_folder}")
 
     loaded_assertions = []
+    term_ids = []
     for ttl_file in ttl_files:
         g = rdflib.Graph()
         g.parse(ttl_file, format="turtle")
         loaded_assertions.append(g)
+        term_ids.append(ttl_file.stem)
         logger.debug(f"Loaded graph from {ttl_file}")
 
     if use_testsuite_keys:
@@ -108,10 +126,18 @@ def cli(
             test_server=dry_run,
         )
 
-    nanopub_generator.publish_sequence(
+    nanopub_uris = nanopub_generator.publish_sequence(
         loaded_assertions,
         dry_run=dry_run,
     )
+
+    term_to_nanopub = list(zip(term_ids, nanopub_uris, strict=True))
+    for term_id, nanopub_uri in term_to_nanopub:
+        logger.info(f"Published mapping: {term_id} -> {nanopub_uri}")
+
+    if redirect_output_file is not None:
+        _write_redirect_mapping(redirect_output_file, term_to_nanopub)
+        logger.info(f"Wrote redirect mapping file to {redirect_output_file}")
 
     logger.info("Publishing complete")
 
