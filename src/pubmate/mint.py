@@ -1,10 +1,11 @@
 import hashlib
 import logging
+import os
 import re
 import json
 
 from typing import Optional, Set
-from ulid import ULID
+from ulid import ULID, constants
 from uuid import uuid4
 
 # Configure logging
@@ -73,6 +74,11 @@ class IdentifierGenerator:
         # Convert dict to canonical JSON (sorted keys, no whitespace)
         canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    
+    def random_ulid(self) -> str:
+        timestamp = ULID.provider.timestamp().to_bytes(constants.TIMESTAMP_LEN, "big")
+        randomness = os.urandom(constants.RANDOMNESS_LEN)
+        return str(ULID.from_bytes(timestamp + randomness))
 
     def generate_id(
         self,
@@ -101,7 +107,7 @@ class IdentifierGenerator:
             if method == "uuid":
                 unique_part = str(uuid4())[:8]  # First 8 chars of UUID
             elif method == "ulid":
-                unique_part = str(ULID())
+                unique_part = self.random_ulid()
 
             elif method == "hash":
                 # Create a hash of the term name, possibly with a salt for retry attempts
