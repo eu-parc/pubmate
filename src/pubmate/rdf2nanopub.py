@@ -12,6 +12,24 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+def sign_and_publish(np: "nanopub.Nanopub", dry_run: bool = True) -> str:
+    """Sign an already-built nanopub and, unless ``dry_run``, publish it.
+
+    Signing is offline (it uses the nanopub's own configured profile/keys) and
+    assigns the trusty URI; publishing requires the network. Returns the signed
+    nanopub URI. With ``dry_run=True`` the nanopub is only signed, which is
+    enough to read back its minted URI/artifact code.
+    """
+    np.sign()
+    np_uri = np.metadata.np_uri
+    if np_uri is None:
+        raise ValueError("no URI was assigned to the nanopublication after signing.")
+    if not dry_run:
+        publication_info = np.publish()
+        logger.info(f"Nanopub published: {publication_info}")
+    return str(np_uri)
+
+
 class NanopubGenerator:
     def __init__(
         self,
@@ -132,17 +150,9 @@ class NanopubGenerator:
         try:
             if supersedes is None:
                 np = self.create_nanopub(assertion=to_publish)
-                np.sign()
-                np_uri = np.metadata.np_uri
-                if np_uri is None:
-                    raise ValueError("no URI returned by nanpub server.")
-                if not dry_run:
-                    publication_info = np.publish()
-                    logger.info(f"Nanopub published: {publication_info}")
+                return sign_and_publish(np, dry_run=dry_run)
             else:
                 raise NotImplementedError
-
-            return np_uri
 
         except Exception as e:
             logger.error(f"Error in publish_single: {e}")
