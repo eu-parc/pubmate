@@ -6,9 +6,14 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "click>=8.1.8",
-    "nanopub>=2.1.0",
+    "nanopub>=2.2.0",
     "python-ulid>=3.1.0",
 ]
+
+# Use the unreleased nanopub-py from git (main) so the '~~~ARTIFACTCODE~~~'
+# placeholder support is available. Remove this once a release ships it.
+[tool.uv.sources]
+nanopub = { git = "https://github.com/Nanopublication/nanopub-py.git", branch = "main" }
 
 [dependency-groups]
 dev = [
