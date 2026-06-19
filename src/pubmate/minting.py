@@ -36,6 +36,58 @@ logger = logging.getLogger(__name__)
 # Trusty artifact code, e.g. "RA" followed by a base64url-ish hash.
 _ARTIFACT_CODE_RE = re.compile(r"RA[A-Za-z0-9_\-]{40,}")
 
+_PROV = rdflib.Namespace("http://www.w3.org/ns/prov#")
+_RDFS = rdflib.Namespace("http://www.w3.org/2000/01/rdf-schema#")
+
+
+def term_input_from_assertion(
+    assertion: rdflib.Graph,
+    *,
+    namespace: str,
+    thing_uri: rdflib.URIRef,
+    term_id: Optional[str] = None,
+    default_suggester: Optional[str] = None,
+) -> TermInput:
+    """Re-key a per-term assertion onto the placeholder thing URI.
+
+    Assertions emitted by the build pipeline are keyed on the term's *current*
+    URI (e.g. a previously minted id). To mint a defining nanopub whose artifact
+    code lands on the thing URI, the assertion's subject must be the builder's
+    placeholder ``thing_uri``. This finds the single term subject in ``namespace``,
+    rewrites it (in subject and object position) to ``thing_uri``, lifts the
+    ``prov:wasAttributedTo`` suggester out of the assertion (it belongs in
+    provenance, added by the builder), and reads ``rdfs:label`` for the nanopub.
+
+    The original term URI becomes the returned ``TermInput.term_id`` (the id-map
+    key) unless ``term_id`` is given.
+    """
+    subjects = {
+        s for s in assertion.subjects() if isinstance(s, rdflib.URIRef) and str(s).startswith(namespace)
+    }
+    if len(subjects) != 1:
+        raise ValueError(
+            f"expected exactly one subject in namespace {namespace!r}, found {len(subjects)}: {sorted(map(str, subjects))}"
+        )
+    old_subject = next(iter(subjects))
+
+    suggester = next((str(o) for o in assertion.objects(old_subject, _PROV.wasAttributedTo)), None)
+    label = next((str(o) for o in assertion.objects(old_subject, _RDFS.label)), None)
+
+    rekeyed = rdflib.Graph()
+    for s, p, o in assertion:
+        if s == old_subject and p == _PROV.wasAttributedTo:
+            continue  # lifted into provenance by the builder
+        new_s = thing_uri if s == old_subject else s
+        new_o = thing_uri if o == old_subject else o
+        rekeyed.add((new_s, p, new_o))
+
+    return TermInput(
+        term_id=term_id or str(old_subject),
+        assertion=rekeyed,
+        suggester_orcid=suggester or default_suggester,
+        label=label,
+    )
+
 
 @dataclass
 class TermInput:
