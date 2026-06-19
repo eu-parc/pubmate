@@ -2,8 +2,22 @@
 
 from __future__ import annotations
 
+import pathlib
+
 import nanopub
 import rdflib
+
+
+def load_nanopub_assertion(path: str | pathlib.Path) -> rdflib.Graph:
+    """Load a nanopublication ``.trig`` file and return its assertion graph.
+
+    Thin wrapper over nanopub-py: ``Nanopub(rdf=...).assertion`` is the assertion
+    named graph as an :class:`rdflib.Graph`, which serializes to plain Turtle
+    (with the right prefixes) on its own. Useful for downstream consumers that
+    read assertions only — e.g. the vocabulary-browser site, which cannot parse
+    the four-graph ``.trig`` itself.
+    """
+    return nanopub.Nanopub(rdf=pathlib.Path(path)).assertion
 
 
 def serialize_nanopub(np: nanopub.Nanopub) -> str:
