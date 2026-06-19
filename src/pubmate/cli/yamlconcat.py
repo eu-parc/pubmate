@@ -17,7 +17,16 @@ import click
     "--target",
     required=True,
 )
-def cli(output: Path, inputs: tuple[Path, ...], target: str):
+@click.option(
+    "--inherit",
+    "inherit_keys",
+    multiple=True,
+    help=(
+        "Top-level key whose value is applied as a default to every entry in the "
+        "same file that does not set it. May be given multiple times (e.g. --inherit suggester)."
+    ),
+)
+def cli(output: Path, inputs: tuple[Path, ...], target: str, inherit_keys: tuple[str, ...]):
     """
     Aggregate multiple YAML vocabulary files into a single container.
 
@@ -53,6 +62,15 @@ def cli(output: Path, inputs: tuple[Path, ...], target: str):
         subclasses = data.get(target, [])
         if not isinstance(subclasses, list):
             raise click.ClickException(f"target must be a list in {path}")
+
+        # Apply file-level defaults (e.g. suggester) to entries that omit them.
+        defaults = {key: data[key] for key in inherit_keys if key in data}
+        if defaults:
+            for entry in subclasses:
+                if not isinstance(entry, dict):
+                    continue
+                for key, value in defaults.items():
+                    entry.setdefault(key, value)
 
         combined[target].extend(subclasses)
 
