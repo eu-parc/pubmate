@@ -1,14 +1,15 @@
-"""Defining-nanopub builder (workflow plan step P1).
+"""Defining-nanopub builder.
 
-Build an *unsigned* nanopublication that defines a single vocabulary term, with
-the term's "thing" URI carrying the trusty artifact-code placeholder so that —
-once signed — the artifact code lands on the thing URI in our own namespace
-while the nanopub URI keeps the default ``w3id.org/np`` form (scheme A; see the
-biochementity nanopub-workflow plan, §3 #6).
+Build an *unsigned* nanopublication that defines a single term, with the term's
+"thing" URI carrying the trusty artifact-code placeholder
+(``~~~ARTIFACTCODE~~~``). When the nanopub is signed, nanopub-py substitutes the
+computed artifact code for the placeholder wherever it appears, so the code
+lands on the thing URI in a caller-chosen namespace while the nanopub URI keeps
+the default ``w3id.org/np`` form.
 
-Only *intrinsic* properties of the term belong in the defining assertion. Links
-to other (possibly not-yet-minted, possibly cyclic) terms are added afterwards
-by superseding (plan step P3), not here.
+Keep the defining assertion to a term's *intrinsic* properties. References to
+other terms that may not be minted yet (or that form cycles) are best added
+afterwards by superseding, once every referenced term has a stable URI.
 """
 
 from __future__ import annotations
@@ -22,7 +23,8 @@ from rdflib.namespace import DCTERMS, RDFS
 from nanopub.definitions import ARTIFACTCODE_PLACEHOLDER
 from nanopub.namespaces import NPX
 
-# CC BY 4.0 — the license agreed for the biochementity vocabulary.
+# A sensible default license for openly published nanopubs (CC BY 4.0). Override
+# per project via the ``license`` argument, or pass ``None`` to omit it.
 DEFAULT_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
 
 # Sentinel distinguishing "argument not given" (fall back to builder/default
@@ -34,16 +36,16 @@ class DefiningNanopubBuilder:
     """Turn a term assertion into an unsigned defining nanopublication.
 
     The builder is configured with the *thing namespace* (e.g.
-    ``https://w3id.org/peh/biochementities/``); the term subject is always
+    ``https://example.org/terms/``); the term subject is always
     :attr:`thing_uri`, the namespace concatenated with the artifact-code
     placeholder. Build the assertion against that subject (use
     :meth:`make_assertion` or :attr:`thing_uri` directly), then :meth:`build`
     wraps it into a nanopub.
 
-    A real :class:`nanopub.Profile` (the bot keypair) is only needed to *sign*
-    at publish time (plan step P2). For PR-validation builds, omit ``profile``:
-    the builder uses an ephemeral in-memory profile whose generated keys are
-    never written to disk, and does not attribute publication to it.
+    A real :class:`nanopub.Profile` (e.g. a signing keypair) is only needed to
+    *sign* at publish time. Omit ``profile`` to build for validation only: the
+    builder uses an ephemeral in-memory profile whose generated keys are never
+    written to disk, and does not attribute publication to it.
     """
 
     def __init__(
@@ -57,7 +59,7 @@ class DefiningNanopubBuilder:
     ):
         if not namespace:
             raise ValueError(
-                "namespace is required (e.g. 'https://w3id.org/peh/biochementities/')."
+                "namespace is required (e.g. 'https://example.org/terms/')."
             )
         self.namespace = namespace
         self.license = license
