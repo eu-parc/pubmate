@@ -18,18 +18,20 @@ from typing import Any, Iterable, Optional, Tuple
 
 import nanopub
 import rdflib
-from rdflib.namespace import DCTERMS, RDFS
 
 from nanopub.definitions import ARTIFACTCODE_PLACEHOLDER
 from nanopub.namespaces import NPX
 
+from pubmate._nanopub_build import (
+    UNSET as _UNSET,
+    add_label_and_license,
+    build_conf,
+    ephemeral_profile,
+)
+
 # A sensible default license for openly published nanopubs (CC BY 4.0). Override
 # per project via the ``license`` argument, or pass ``None`` to omit it.
 DEFAULT_LICENSE = "https://creativecommons.org/licenses/by/4.0/"
-
-# Sentinel distinguishing "argument not given" (fall back to builder/default
-# behaviour) from "explicitly given None" (suppress that piece of pubinfo).
-_UNSET: Any = object()
 
 
 class DefiningNanopubBuilder:
@@ -67,10 +69,7 @@ class DefiningNanopubBuilder:
         self.add_prov_generated_time = add_prov_generated_time
 
         self._keyless = profile is None
-        self.profile = profile if profile is not None else nanopub.Profile(
-            orcid_id="https://orcid.org/0000-0000-0000-0000",
-            name="pubmate unsigned builder",
-        )
+        self.profile = profile if profile is not None else ephemeral_profile()
 
     @property
     def thing_uri(self) -> rdflib.URIRef:
@@ -124,18 +123,12 @@ class DefiningNanopubBuilder:
         if len(assertion) == 0:
             raise ValueError("assertion graph is empty; a defining nanopub needs at least one triple.")
 
-        conf = nanopub.NanopubConf(
+        conf = build_conf(
             profile=self.profile,
-            use_test_server=self.test_server,
+            keyless=self._keyless,
+            test_server=self.test_server,
             add_prov_generated_time=self.add_prov_generated_time,
-            add_pubinfo_generated_time=True,
-            # Attribute the assertion to the suggester, never to the signer/profile;
-            # passing both would raise MalformedNanopubError.
-            assertion_attributed_to=suggester_orcid,
-            attribute_assertion_to_profile=False,
-            # Publication is attributed to the real signer at publish time; keep it
-            # off for keyless validation builds so the ephemeral profile is not embedded.
-            attribute_publication_to_profile=not self._keyless,
+            suggester_orcid=suggester_orcid,
             derived_from=derived_from,
         )
 
@@ -147,11 +140,7 @@ class DefiningNanopubBuilder:
         if introduces is not None:
             np.pubinfo.add((np_ref, NPX.introduces, rdflib.URIRef(introduces)))
 
-        if label:
-            np.pubinfo.add((np_ref, RDFS.label, rdflib.Literal(label)))
-
         effective_license = self.license if license is _UNSET else license
-        if effective_license:
-            np.pubinfo.add((np_ref, DCTERMS.license, rdflib.URIRef(effective_license)))
+        add_label_and_license(np, np_ref=np_ref, label=label, license=effective_license)
 
         return np
