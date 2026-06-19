@@ -2,6 +2,7 @@ from pubmate.defining import DEFAULT_LICENSE, DefiningNanopubBuilder
 from pubmate.mint import IdentifierGenerator
 from pubmate.minting import MintBatch, MintedTerm, SequentialMinter, TermInput
 from pubmate.rdf2nanopub import NanopubGenerator, sign_and_publish
+from pubmate.supersede import SupersessionBuilder
 from pubmate.utils import serialize_nanopub
 
 __all__ = [
@@ -12,6 +13,7 @@ __all__ = [
     "MintedTerm",
     "NanopubGenerator",
     "SequentialMinter",
+    "SupersessionBuilder",
     "TermInput",
     "serialize_nanopub",
     "sign_and_publish",
