@@ -20,7 +20,9 @@ CLI entrypoints provided by this project:
 - `pubmate-yamlconcat`
 - `pubmate-mint`
 - `pubmate-cleanrdf`
-- `pubmate-publish`
+- `pubmate-extract-assertions`
+- `pubmate-validate-defining`
+- `pubmate-mint-publish`
 
 ## Typical End-to-End Workflow
 
@@ -74,28 +76,54 @@ pubmate-cleanrdf \
 
 Output: `assertions/<term_id>.ttl` files.
 
-### 4) Dry-run publication flow (safe first pass)
+### 4) Validate that each assertion forms a defining nanopub (keyless)
 
-This signs and builds nanopubs but does not publish (`--dry-run`).
+`pubmate-validate-defining` wraps each assertion into a defining nanopub and
+signs it with an ephemeral in-memory key (no secrets, no network) — a good PR gate.
 
 ```bash
-pubmate-publish \
+pubmate-validate-defining \
   --assertion-folder assertions \
-  --orcid-id https://orcid.org/0000-0000-0000-0000 \
-  --name "Your Name" \
-  --private-key /path/to/id_rsa \
-  --public-key /path/to/id_rsa.pub \
-  --intro-nanopub-uri https://w3id.org/np/RA... \
+  --namespace https://w3id.org/yourspace/term/
+```
+
+### 5) Mint and publish defining nanopubs
+
+`pubmate-mint-publish` re-keys each assertion onto the `~~~ARTIFACTCODE~~~`
+placeholder, signs it (which lands the artifact code on the term's thing URI),
+and — unless `--dry-run` — publishes it. Minted `.trig` nanopubs go to
+`--output-dir`, and the old-id → thing/np-URI mapping is merged into `--id-map-file`.
+
+Dry-run (sign only, offline, ephemeral key):
+
+```bash
+pubmate-mint-publish \
+  --assertion-folder assertions \
+  --namespace https://w3id.org/yourspace/term/ \
+  --output-dir published \
+  --id-map-file id-map.tsv \
   --dry-run
 ```
 
-### 5) Publish to nanopub server (real publication)
-
-Same command, without `--dry-run`:
+Publish to the nanopub test server with testsuite keys (no personal secrets):
 
 ```bash
-pubmate-publish \
+pubmate-mint-publish \
   --assertion-folder assertions \
+  --namespace https://w3id.org/yourspace/term/ \
+  --output-dir published \
+  --id-map-file id-map.tsv \
+  --use-testsuite-keys
+```
+
+Real publication uses the bot/personal key instead of `--use-testsuite-keys`:
+
+```bash
+pubmate-mint-publish \
+  --assertion-folder assertions \
+  --namespace https://w3id.org/yourspace/term/ \
+  --output-dir published \
+  --id-map-file id-map.tsv \
   --orcid-id https://orcid.org/0000-0000-0000-0000 \
   --name "Your Name" \
   --private-key /path/to/id_rsa \
@@ -103,29 +131,12 @@ pubmate-publish \
   --intro-nanopub-uri https://w3id.org/np/RA...
 ```
 
-## Using Testsuite Keys (No Personal Secrets)
-
-For local/CI dry-run checks, you can use nanopub testsuite keys:
-
-```bash
-pubmate-publish \
-  --assertion-folder assertions \
-  --dry-run \
-  --use-testsuite-keys
-```
-
-This avoids passing personal key files.
-
-Advanced overrides exist for testsuite key/ref (hidden from normal help):
-- `--testsuite-key` (default `rsa-key1`)
-- `--testsuite-ref` (default `main`)
-
 ## Real-Life Publishing Checklist
 
 Before real publish:
 1. Run `pubmate-mint --dry-run` and inspect ID changes.
 2. Generate assertion files and manually inspect a few `.ttl` outputs.
-3. Run `pubmate-publish --dry-run` first.
+3. Run `pubmate-validate-defining`, then `pubmate-mint-publish --dry-run`.
 4. Publish a small subset first (e.g., a temporary small assertion folder).
 5. Then publish the full batch.
 

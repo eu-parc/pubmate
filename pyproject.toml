@@ -25,7 +25,6 @@ pubmate-cleanrdf = "pubmate.cli.cleanrdf:cli"
 pubmate-extract-assertions = "pubmate.cli.extract_assertions:cli"
 pubmate-mint = "pubmate.cli.mint:cli"
 pubmate-mint-publish = "pubmate.cli.mint_publish:cli"
-pubmate-publish = "pubmate.cli.publish:cli"
 pubmate-validate-defining = "pubmate.cli.validate_defining:cli"
 pubmate-yamlconcat = "pubmate.cli.yamlconcat:cli"
 
