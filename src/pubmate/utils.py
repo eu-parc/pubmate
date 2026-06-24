@@ -19,6 +19,9 @@ WELL_KNOWN_PREFIXES: dict[str, str] = {
     "skos": "http://www.w3.org/2004/02/skos/core#",
     "prov": "http://www.w3.org/ns/prov#",
     "dcterms": "http://purl.org/dc/terms/",
+    "foaf": "http://xmlns.com/foaf/0.1/",
+    "frbr": "http://purl.org/vocab/frbr/core#",
+    "nt": "https://w3id.org/np/o/ntemplate/",
     # PEH vocabulary (see schema/peh.yaml in biochementity-vocabulary)
     "pehterms": "https://w3id.org/peh/terms/",
     "biochementity": "https://w3id.org/peh/biochementities/",

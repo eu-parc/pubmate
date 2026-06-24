@@ -1,5 +1,6 @@
 from pubmate.defining import DEFAULT_LICENSE, DefiningNanopubBuilder
 from pubmate.idmap import IdMap, IdMapEntry
+from pubmate.introduction import build_introduction
 from pubmate.migrate import MigrationResult, MintedSupersession, migrate_terms
 from pubmate.mint import IdentifierGenerator
 from pubmate.minting import MintBatch, MintedTerm, SequentialMinter, TermInput
@@ -23,6 +24,7 @@ __all__ = [
     "SequentialMinter",
     "SupersessionBuilder",
     "TermInput",
+    "build_introduction",
     "migrate_terms",
     "order_terms",
     "referenced_terms",

@@ -21,6 +21,7 @@ dev = [
 ]
 
 [project.scripts]
+pubmate-bootstrap-identity = "pubmate.cli.bootstrap_identity:cli"
 pubmate-cleanrdf = "pubmate.cli.cleanrdf:cli"
 pubmate-extract-assertions = "pubmate.cli.extract_assertions:cli"
 pubmate-migrate = "pubmate.cli.migrate:cli"
