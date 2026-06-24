@@ -8,6 +8,7 @@ defining and migration CLIs build their nanopub builders the same way.
 from __future__ import annotations
 
 import logging
+import pathlib
 from dataclasses import dataclass
 from typing import Optional
 
@@ -60,11 +61,13 @@ def resolve_signing(
         return Signing(profile=generator.profile, test_server=True)
 
     if private_key and public_key:
+        # Pass Path objects: nanopub.Profile only *reads* a key file when it is a
+        # pathlib.Path; a str is taken as the raw key material.
         profile = nanopub.Profile(
             orcid_id=orcid_id,
             name=name,
-            private_key=private_key,
-            public_key=public_key,
+            private_key=pathlib.Path(private_key),
+            public_key=pathlib.Path(public_key),
             introduction_nanopub_uri=intro_nanopub_uri,
         )
         return Signing(profile=profile, test_server=test_server)
