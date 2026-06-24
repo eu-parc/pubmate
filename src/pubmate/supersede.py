@@ -29,6 +29,7 @@ from pubmate._nanopub_build import (
     add_label_and_license,
     build_conf,
     ephemeral_profile,
+    relabel_blank_nodes,
 )
 from pubmate.defining import DEFAULT_LICENSE
 
@@ -96,7 +97,7 @@ class SupersessionBuilder:
             derived_from=derived_from,
         )
 
-        np = nanopub.Nanopub(conf=conf, assertion=assertion)
+        np = nanopub.Nanopub(conf=conf, assertion=relabel_blank_nodes(assertion))
         np_ref = np.metadata.namespace[""]
 
         np.pubinfo.add((np_ref, NPX.supersedes, rdflib.URIRef(supersedes_np_uri)))

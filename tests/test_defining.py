@@ -97,3 +97,38 @@ def test_sign_substitutes_placeholder_with_artifact_code() -> None:
     expected_thing_uri = rdflib.URIRef(f"{NAMESPACE}{code}")
     assert (expected_thing_uri, None, None) in np.assertion
     assert (None, NPX.introduces, expected_thing_uri) in np.pubinfo
+
+
+def test_blank_nodes_get_short_deterministic_labels():
+    """Blank nodes serialize as sub:_b1/_b2, not the source's long random ids."""
+    builder = _builder()
+    schema = rdflib.Namespace("http://schema.org/")
+    g = builder.make_assertion([(RDFS.label, rdflib.Literal("x"))])
+    subj = builder.thing_uri
+    ctx = rdflib.BNode("ndf301ab1d6704b938f61a317a7631d20b1")  # long source-style id
+    g.add((subj, NPX.declaredBy, ctx))  # any predicate -> bnode object
+    g.add((ctx, schema.identifier, rdflib.Literal("short_name")))
+    np = builder.build(g)
+    np.sign()
+    trig = np.rdf.serialize(format="trig")
+    assert "ndf301ab1d6704b938f61a317a7631d20b1" not in trig
+    assert "_b1" in trig
+
+
+def test_blank_node_relabel_is_isomorphic_and_stable():
+    """Differently-labeled isomorphic graphs relabel to the same b1 graph."""
+    from pubmate._nanopub_build import relabel_blank_nodes
+    schema = rdflib.Namespace("http://schema.org/")
+    subj = rdflib.URIRef(NAMESPACE + "x")
+
+    def make(bid):
+        g = rdflib.Graph()
+        b = rdflib.BNode(bid)
+        g.add((subj, NPX.declaredBy, b))
+        g.add((b, schema.identifier, rdflib.Literal("short_name")))
+        return g
+
+    r1, r2 = relabel_blank_nodes(make("nAAA")), relabel_blank_nodes(make("nBBB"))
+    # the source bnode id no longer matters -> identical (isomorphic) graphs
+    assert set(r1) == set(r2)
+    assert {str(n) for t in r1 for n in t if isinstance(n, rdflib.BNode)} == {"b1"}

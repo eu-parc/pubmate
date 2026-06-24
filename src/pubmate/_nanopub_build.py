@@ -21,6 +21,41 @@ UNSET: Any = object()
 EPHEMERAL_ORCID = "https://orcid.org/0000-0000-0000-0000"
 
 
+def _bnode_sort_key(graph: rdflib.Graph, bnode: rdflib.BNode) -> tuple:
+    """A content-based key for a blank node, so relabeling is order-stable.
+
+    Keys on the bnode's outgoing ``(predicate, object)`` pairs (nested blank
+    objects contribute only their predicate), so the ordering does not depend on
+    the source's random bnode ids. Bnodes with identical content sort equal —
+    which is fine, since swapping their labels yields an isomorphic graph.
+    """
+    items = [
+        (str(p), "" if isinstance(o, rdflib.BNode) else str(o))
+        for p, o in graph.predicate_objects(bnode)
+    ]
+    return tuple(sorted(items))
+
+
+def relabel_blank_nodes(graph: rdflib.Graph, *, prefix: str = "b") -> rdflib.Graph:
+    """Rename blank nodes to short, deterministic labels (``b1``, ``b2``, …).
+
+    nanopub-py turns each blank node into a ``sub:_<label>`` URI. With the
+    source's long, per-parse-random anonymous-node ids that yields unreadable and
+    non-reproducible suffixes (e.g. ``sub:_ndf301ab1d67…b1``). Relabeling to short
+    content-ordered labels makes them ``sub:_b1`` / ``sub:_b2`` — readable and
+    stable across runs. Returns the graph unchanged if it has no blank nodes.
+    """
+    bnodes = {n for triple in graph for n in triple if isinstance(n, rdflib.BNode)}
+    if not bnodes:
+        return graph
+    ordered = sorted(bnodes, key=lambda b: _bnode_sort_key(graph, b))
+    mapping: dict = {b: rdflib.BNode(f"{prefix}{i + 1}") for i, b in enumerate(ordered)}
+    out = rdflib.Graph()
+    for s, p, o in graph:
+        out.add((mapping.get(s, s), p, mapping.get(o, o)))
+    return out
+
+
 def preferred_label(
     graph: rdflib.Graph,
     subject: rdflib.term.Node,

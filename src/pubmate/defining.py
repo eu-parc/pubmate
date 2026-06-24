@@ -27,6 +27,7 @@ from pubmate._nanopub_build import (
     add_label_and_license,
     build_conf,
     ephemeral_profile,
+    relabel_blank_nodes,
 )
 
 # A sensible default license for openly published nanopubs (CC BY 4.0). Override
@@ -132,7 +133,7 @@ class DefiningNanopubBuilder:
             derived_from=derived_from,
         )
 
-        np = nanopub.Nanopub(conf=conf, assertion=assertion)
+        np = nanopub.Nanopub(conf=conf, assertion=relabel_blank_nodes(assertion))
         np_ref = np.metadata.namespace[""]
 
         if introduces is _UNSET:
