@@ -178,7 +178,10 @@ def migrate_terms(
             assertions[old], namespace=namespace, subject=subjects[old],
             new_subject=new_subject, thing_uris=resolved_thing,
         )
-        sup_np = supersession_builder.build(full, supersedes_np_uri=minted.np_uri, label=_label(full, new_subject))
+        sup_np = supersession_builder.build(
+            full, supersedes_np_uri=minted.np_uri, label=_label(full, new_subject),
+            suggester_orcid=minter.default_suggester_orcid,
+        )
         sup_uri = sign_and_publish(sup_np, dry_run=dry_run)
         logger.info("Superseded %s (%s) -> %s", old, minted.np_uri, sup_uri)
         result.superseding.append(

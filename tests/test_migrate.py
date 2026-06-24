@@ -102,3 +102,21 @@ def test_rerun_with_existing_idmap_mints_nothing():
     assert second.superseding == []
     # the carried-over id-map is preserved
     assert len(second.id_map) == 2
+
+
+def test_default_suggester_attributes_defining_and_superseding():
+    PROV = rdflib.Namespace("http://www.w3.org/ns/prov#")
+    GERTJAN = rdflib.URIRef("https://orcid.org/0000-0001-8327-0142")
+    assertions = _batch({"a": {"isomer_of": ["b"]}, "b": {"isomer_of": ["a"]}})  # cycle -> 1 supersession
+    builder = DefiningNanopubBuilder(NS)
+    minter = SequentialMinter(builder, default_suggester_orcid=str(GERTJAN))
+    result = migrate_terms(
+        assertions, namespace=NS, minter=minter, supersession_builder=SupersessionBuilder(), dry_run=True,
+    )
+    # every defining nanopub's assertion is attributed to the default suggester (in provenance)
+    for t in result.defining.terms:
+        assert GERTJAN in set(t.nanopub.provenance.objects(None, PROV.wasAttributedTo))
+    # and so is the superseding one
+    assert result.superseding
+    for s in result.superseding:
+        assert GERTJAN in set(s.nanopub.provenance.objects(None, PROV.wasAttributedTo))

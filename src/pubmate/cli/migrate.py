@@ -47,6 +47,7 @@ def _code(np_uri: str) -> str:
 @click.option("--id-map-file", type=click.Path(dir_okay=False, path_type=pathlib.Path), help="TSV id-map to write/merge (old_id -> thing_uri, np_uri).")
 @click.option("--orcid-id")
 @click.option("--name")
+@click.option("--default-suggester", help="ORCID attributed as the suggester (prov:wasAttributedTo) for any term that carries none — e.g. the contributor of an existing batch being migrated.")
 @click.option("--private-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--public-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--intro-nanopub-uri")
@@ -63,6 +64,7 @@ def cli(
     id_map_file: pathlib.Path | None,
     orcid_id: str | None,
     name: str | None,
+    default_suggester: str | None,
     private_key: str | None,
     public_key: str | None,
     intro_nanopub_uri: str | None,
@@ -86,7 +88,7 @@ def cli(
         testsuite_key=testsuite_key, testsuite_ref=testsuite_ref, test_server=test_server, dry_run=dry_run,
     )
     builder = DefiningNanopubBuilder(namespace, profile=signing.profile, test_server=signing.test_server)
-    minter = SequentialMinter(builder)
+    minter = SequentialMinter(builder, default_suggester_orcid=default_suggester)
     supersession = SupersessionBuilder(profile=signing.profile, test_server=signing.test_server)
 
     files = sorted(assertion_folder.glob(pattern))
