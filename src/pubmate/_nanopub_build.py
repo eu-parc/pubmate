@@ -21,6 +21,34 @@ UNSET: Any = object()
 EPHEMERAL_ORCID = "https://orcid.org/0000-0000-0000-0000"
 
 
+def preferred_label(
+    graph: rdflib.Graph,
+    subject: rdflib.term.Node,
+    predicate: rdflib.URIRef = RDFS.label,
+) -> Optional[str]:
+    """Pick the "regular" label for a term among several language variants.
+
+    A term often carries an untagged label plus localized ones (e.g. ``"Lead"``
+    and ``"Lood"@nl-be``). For the nanopub's own ``rdfs:label`` we want the
+    canonical one, so prefer an **untagged** literal, then English, then any
+    other (ties broken by text for determinism). Returns ``None`` if there is no
+    literal label.
+    """
+    labels = [o for o in graph.objects(subject, predicate) if isinstance(o, rdflib.Literal)]
+    if not labels:
+        return None
+
+    def rank(lit: rdflib.Literal) -> int:
+        lang = (lit.language or "").lower()
+        if not lang:
+            return 0
+        if lang == "en" or lang.startswith("en-"):
+            return 1
+        return 2
+
+    return str(min(labels, key=lambda lit: (rank(lit), str(lit))))
+
+
 def ephemeral_profile() -> nanopub.Profile:
     """An in-memory profile whose generated keys are never written to disk.
 

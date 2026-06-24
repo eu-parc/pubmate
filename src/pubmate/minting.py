@@ -27,6 +27,7 @@ from typing import Dict, Iterable, List, Optional
 import nanopub
 import rdflib
 
+from pubmate._nanopub_build import preferred_label
 from pubmate.defining import DefiningNanopubBuilder
 from pubmate.rdf2nanopub import sign_and_publish
 from pubmate.utils import serialize_nanopub
@@ -71,7 +72,7 @@ def term_input_from_assertion(
     old_subject = next(iter(subjects))
 
     suggester = next((str(o) for o in assertion.objects(old_subject, _PROV.wasAttributedTo)), None)
-    label = next((str(o) for o in assertion.objects(old_subject, _RDFS.label)), None)
+    label = preferred_label(assertion, old_subject)
 
     rekeyed = rdflib.Graph()
     for s, p, o in assertion:

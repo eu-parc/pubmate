@@ -24,6 +24,7 @@ from typing import Dict, List, Mapping, Optional, Set, Tuple
 import nanopub
 import rdflib
 
+from pubmate._nanopub_build import preferred_label
 from pubmate.defining import DefiningNanopubBuilder
 from pubmate.idmap import IdMap, IdMapEntry
 from pubmate.minting import MintBatch, MintedTerm, SequentialMinter, term_input_from_assertion
@@ -187,8 +188,5 @@ def migrate_terms(
     return result
 
 
-_RDFS = rdflib.Namespace("http://www.w3.org/2000/01/rdf-schema#")
-
-
 def _label(graph: rdflib.Graph, subject: rdflib.URIRef) -> Optional[str]:
-    return next((str(o) for o in graph.objects(subject, _RDFS.label)), None)
+    return preferred_label(graph, subject)

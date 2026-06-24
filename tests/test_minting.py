@@ -87,3 +87,30 @@ def test_mint_all_writes_trig_files(tmp_path):
         # Canonical serialization: Head graph block first, no leftover placeholder.
         assert text.index("Head {") < text.index("assertion {")
         assert "~~~ARTIFACTCODE~~~" not in text
+
+
+def test_term_input_prefers_untagged_label_over_localized():
+    from pubmate.minting import term_input_from_assertion
+    g = rdflib.Graph()
+    s = rdflib.URIRef(NAMESPACE + "lead")
+    g.add((s, RDF.type, RDFS.Class))
+    g.add((s, RDFS.label, Literal("Lood", lang="nl-be")))
+    g.add((s, RDFS.label, Literal("Lead")))  # untagged "regular" one
+    term = term_input_from_assertion(g, namespace=NAMESPACE, thing_uri=rdflib.URIRef(NAMESPACE + "X"))
+    assert term.label == "Lead"
+
+
+def test_preferred_label_falls_back_english_then_any():
+    from pubmate._nanopub_build import preferred_label
+    s = rdflib.URIRef(NAMESPACE + "x")
+    # only localized + english -> english wins over nl-be
+    g = rdflib.Graph()
+    g.add((s, RDFS.label, Literal("Lood", lang="nl-be")))
+    g.add((s, RDFS.label, Literal("Lead", lang="en")))
+    assert preferred_label(g, s) == "Lead"
+    # only localized -> still returns something (deterministic)
+    g2 = rdflib.Graph()
+    g2.add((s, RDFS.label, Literal("Lood", lang="nl-be")))
+    assert preferred_label(g2, s) == "Lood"
+    # no label -> None
+    assert preferred_label(rdflib.Graph(), s) is None
