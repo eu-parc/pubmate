@@ -57,6 +57,7 @@ class MigrationResult:
 def _resolve_all(
     assertion: rdflib.Graph,
     *,
+    namespace: str,
     subject: rdflib.URIRef,
     new_subject: rdflib.URIRef,
     thing_uris: Mapping[str, str],
@@ -65,7 +66,9 @@ def _resolve_all(
 
     Rewrites the subject (old URI -> ``new_subject``) and every object URI that
     is a known old term id (-> its new thing URI). Used to build the superseding
-    nanopub's full assertion once every term has been minted.
+    nanopub's full assertion once every term has been minted. Dangling term
+    references (in-namespace, not resolvable) are dropped — consistent with the
+    defining pass — so a superseding nanopub never reintroduces a broken link.
     """
     out = rdflib.Graph()
     for s, p, o in assertion:
@@ -75,6 +78,8 @@ def _resolve_all(
                 no: rdflib.term.Node = new_subject
             elif str(o) in thing_uris:
                 no = rdflib.URIRef(thing_uris[str(o)])
+            elif str(o).startswith(namespace):
+                continue  # dangling term reference -> drop
             else:
                 no = o
         else:
@@ -141,9 +146,9 @@ def migrate_terms(
         )
         if split.dangling:
             dangling_count += len(split.dangling)
-            logger.warning(
-                "%s: %d reference(s) to terms not in this batch and not yet minted; "
-                "kept with their old ids: %s",
+            logger.error(
+                "%s: %d reference(s) to terms absent from the batch (dangling foreign "
+                "key, likely a stale/deduplicated id); dropped from the minted nanopub: %s",
                 old, len(split.dangling), [str(o) for _, _, o in split.dangling],
             )
         term = term_input_from_assertion(split.kept, namespace=namespace, thing_uri=minter.builder.thing_uri)
@@ -158,9 +163,9 @@ def migrate_terms(
             deferred_by_term[old] = split.deferred
 
     if dangling_count:
-        logger.warning(
-            "%d dangling reference(s) kept with old ids across the batch; "
-            "expected 0 in a full migration (all referenced terms present).",
+        logger.error(
+            "%d dangling reference(s) dropped across the batch; expected 0 in a clean "
+            "migration (every referenced term present). Fix the source data and re-run.",
             dangling_count,
         )
 
@@ -169,7 +174,8 @@ def migrate_terms(
         minted = minted_by_term[old]
         new_subject = rdflib.URIRef(minted.thing_uri)
         full = _resolve_all(
-            assertions[old], subject=subjects[old], new_subject=new_subject, thing_uris=resolved_thing
+            assertions[old], namespace=namespace, subject=subjects[old],
+            new_subject=new_subject, thing_uris=resolved_thing,
         )
         sup_np = supersession_builder.build(full, supersedes_np_uri=minted.np_uri, label=_label(full, new_subject))
         sup_uri = sign_and_publish(sup_np, dry_run=dry_run)

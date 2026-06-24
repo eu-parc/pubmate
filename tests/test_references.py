@@ -119,13 +119,16 @@ def test_split_with_all_resolved_has_no_deferred():
     assert (s, PEH.isMetaboliteOf, rdflib.URIRef(NS + "RAbbb")) in split.kept
 
 
-def test_split_keeps_dangling_reference_with_old_id():
-    # c is referenced but neither resolved nor in the batch -> dangling, kept as-is
+def test_split_drops_dangling_reference():
+    # c is referenced but neither resolved nor in the batch -> dangling, dropped
     g, s = _assertion("a", refs=["c"])
     split = split_references(
         g, namespace=NS, subject=s, resolved_uris={}, batch_targets={TERMS["a"].toPython()}
     )
     assert split.deferred == []
     assert split.dangling == [(s, PEH.isMetaboliteOf, TERMS["c"])]
-    # kept with its old id so the term still mints
-    assert (s, PEH.isMetaboliteOf, TERMS["c"]) in split.kept
+    # dropped from the minted graph (a published nanopub must not carry an
+    # unresolvable reference) but the term still mints with its other triples
+    assert (s, PEH.isMetaboliteOf, TERMS["c"]) not in split.kept
+    assert (s, RDFS.label, rdflib.Literal("a")) in split.kept
+    assert (s, RDFS.subClassOf, PEH.BioChemEntity) in split.kept

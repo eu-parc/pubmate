@@ -128,15 +128,16 @@ class SplitReferences:
     """The outcome of classifying a term's inter-term references.
 
     Attributes:
-        kept: the assertion graph to mint now — non-reference triples, references
-            already resolved to new thing URIs, and any *dangling* references
-            left as-is (so the term still mints).
+        kept: the assertion graph to mint now — non-reference triples and
+            references already resolved to new thing URIs. Dangling references are
+            *not* included (the term still mints, just without the broken link).
         deferred: reference triples (old-id) whose target is in the batch but not
             yet minted (cycle back-edges); re-added later by superseding.
         dangling: reference triples whose target is neither resolved nor in the
-            batch — an unknown/unmigratable reference. Kept in ``kept`` as-is, but
-            reported so the caller can warn (in a full migration this should be
-            empty).
+            batch — an unknown/unmigratable reference. **Dropped** from ``kept``
+            (a published nanopub is immutable; baking in a reference that can
+            never resolve is worse than omitting it) and reported so the caller
+            can raise an error. In a full migration this should be empty.
     """
 
     kept: rdflib.Graph
@@ -160,8 +161,9 @@ def split_references(
       URI and kept;
     * target in ``batch_targets`` but not yet minted — **deferred** (a cycle
       back-edge), removed from ``kept`` and re-added later by superseding;
-    * target neither resolved nor in the batch — **dangling**: kept as-is (old
-      id) so the term still mints, and reported for a warning.
+    * target neither resolved nor in the batch — **dangling**: dropped from
+      ``kept`` (the term still mints, without the broken link) and reported so
+      the caller can raise an error.
 
     Non-reference triples always pass through to ``kept`` unchanged.
     """
@@ -175,6 +177,5 @@ def split_references(
         elif str(o) in batch_targets:
             result.deferred.append((s, p, o))
         else:
-            result.kept.add((s, p, o))
             result.dangling.append((s, p, o))
     return result
