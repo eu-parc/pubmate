@@ -7,11 +7,17 @@ place.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 import nanopub
 import rdflib
 from rdflib.namespace import DCTERMS, RDFS
+
+from nanopub.namespaces import NPX
+
+#: The nanopub-template ontology; ``nt:wasCreatedFromTemplate`` lets tools like
+#: Nanodash render a nanopub with the form/labels of the template it follows.
+NTEMPLATE = rdflib.Namespace("https://w3id.org/np/o/ntemplate/")
 
 # Sentinel distinguishing "argument not given" (fall back to a default) from
 # "explicitly given None" (suppress that piece of pubinfo).
@@ -131,3 +137,24 @@ def add_label_and_license(
         np.pubinfo.add((np_ref, RDFS.label, rdflib.Literal(label)))
     if license:
         np.pubinfo.add((np_ref, DCTERMS.license, rdflib.URIRef(license)))
+
+
+def add_pubinfo_tags(
+    np: nanopub.Nanopub,
+    *,
+    np_ref: rdflib.term.Identifier,
+    nanopub_types: Optional[Iterable[str]] = None,
+    template: Optional[str] = None,
+) -> None:
+    """Add optional ``npx:hasNanopubType`` and ``nt:wasCreatedFromTemplate`` tags.
+
+    Both are pubinfo hints consumers use to categorize and render the nanopub:
+    ``hasNanopubType`` declares the kind(s) of thing it asserts (e.g. a
+    ``BioChemEntity``); ``wasCreatedFromTemplate`` points at the assertion
+    template it follows so Nanodash shows it with the matching form.
+    """
+    if nanopub_types:
+        for nanopub_type in nanopub_types:
+            np.pubinfo.add((np_ref, NPX.hasNanopubType, rdflib.URIRef(nanopub_type)))
+    if template:
+        np.pubinfo.add((np_ref, NTEMPLATE.wasCreatedFromTemplate, rdflib.URIRef(template)))

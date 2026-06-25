@@ -14,7 +14,7 @@ afterwards by superseding, once every referenced term has a stable URI.
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Optional, Tuple
+from typing import Any, Iterable, Optional, Sequence, Tuple
 
 import nanopub
 import rdflib
@@ -25,6 +25,7 @@ from nanopub.namespaces import NPX
 from pubmate._nanopub_build import (
     UNSET as _UNSET,
     add_label_and_license,
+    add_pubinfo_tags,
     build_conf,
     ephemeral_profile,
     relabel_blank_nodes,
@@ -59,6 +60,8 @@ class DefiningNanopubBuilder:
         license: Optional[str] = DEFAULT_LICENSE,
         test_server: bool = False,
         add_prov_generated_time: bool = True,
+        nanopub_types: Optional[Sequence[str]] = None,
+        template: Optional[str] = None,
     ):
         if not namespace:
             raise ValueError(
@@ -68,6 +71,10 @@ class DefiningNanopubBuilder:
         self.license = license
         self.test_server = test_server
         self.add_prov_generated_time = add_prov_generated_time
+        #: ``npx:hasNanopubType`` value(s) tagged on every nanopub's pubinfo.
+        self.nanopub_types = tuple(nanopub_types) if nanopub_types else ()
+        #: ``nt:wasCreatedFromTemplate`` value tagged on every nanopub's pubinfo.
+        self.template = template
 
         self._keyless = profile is None
         self.profile = profile if profile is not None else ephemeral_profile()
@@ -143,5 +150,6 @@ class DefiningNanopubBuilder:
 
         effective_license = self.license if license is _UNSET else license
         add_label_and_license(np, np_ref=np_ref, label=label, license=effective_license)
+        add_pubinfo_tags(np, np_ref=np_ref, nanopub_types=self.nanopub_types, template=self.template)
 
         return np

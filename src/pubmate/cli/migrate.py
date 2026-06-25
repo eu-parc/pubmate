@@ -48,6 +48,8 @@ def _code(np_uri: str) -> str:
 @click.option("--orcid-id")
 @click.option("--name")
 @click.option("--default-suggester", help="ORCID attributed as the suggester (prov:wasAttributedTo) for any term that carries none — e.g. the contributor of an existing batch being migrated.")
+@click.option("--nanopub-type", "nanopub_types", multiple=True, help="URI tagged in pubinfo as npx:hasNanopubType on every nanopub (repeatable).")
+@click.option("--template", help="Assertion-template URI tagged in pubinfo as nt:wasCreatedFromTemplate on every nanopub (for Nanodash rendering).")
 @click.option("--private-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--public-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--intro-nanopub-uri")
@@ -65,6 +67,8 @@ def cli(
     orcid_id: str | None,
     name: str | None,
     default_suggester: str | None,
+    nanopub_types: tuple[str, ...],
+    template: str | None,
     private_key: str | None,
     public_key: str | None,
     intro_nanopub_uri: str | None,
@@ -87,9 +91,15 @@ def cli(
         intro_nanopub_uri=intro_nanopub_uri, use_testsuite_keys=use_testsuite_keys,
         testsuite_key=testsuite_key, testsuite_ref=testsuite_ref, test_server=test_server, dry_run=dry_run,
     )
-    builder = DefiningNanopubBuilder(namespace, profile=signing.profile, test_server=signing.test_server)
+    builder = DefiningNanopubBuilder(
+        namespace, profile=signing.profile, test_server=signing.test_server,
+        nanopub_types=nanopub_types, template=template,
+    )
     minter = SequentialMinter(builder, default_suggester_orcid=default_suggester)
-    supersession = SupersessionBuilder(profile=signing.profile, test_server=signing.test_server)
+    supersession = SupersessionBuilder(
+        profile=signing.profile, test_server=signing.test_server,
+        nanopub_types=nanopub_types, template=template,
+    )
 
     files = sorted(assertion_folder.glob(pattern))
     if not files:

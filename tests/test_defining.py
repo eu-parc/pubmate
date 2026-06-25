@@ -79,6 +79,27 @@ def test_build_can_suppress_license_and_introduces() -> None:
     assert (None, DCTERMS.license, None) not in np.pubinfo
 
 
+NTEMPLATE = rdflib.Namespace("https://w3id.org/np/o/ntemplate/")
+TYPE_URI = "https://w3id.org/peh/terms/BioChemEntity"
+TEMPLATE_URI = "https://w3id.org/np/RAhSlIuuw5YqmMoyyvmy5GL3qIhs7sp14i6x2y3DCOhXM"
+
+
+def test_build_tags_nanopub_type_and_template() -> None:
+    builder = DefiningNanopubBuilder(NAMESPACE, nanopub_types=[TYPE_URI], template=TEMPLATE_URI)
+    np = builder.build(_assertion(builder))
+    np_ref = np.metadata.namespace[""]
+
+    assert (np_ref, NPX.hasNanopubType, rdflib.URIRef(TYPE_URI)) in np.pubinfo
+    assert (np_ref, NTEMPLATE.wasCreatedFromTemplate, rdflib.URIRef(TEMPLATE_URI)) in np.pubinfo
+
+
+def test_build_omits_tags_by_default() -> None:
+    np = _builder().build(_assertion(_builder()))
+
+    assert (None, NPX.hasNanopubType, None) not in np.pubinfo
+    assert (None, NTEMPLATE.wasCreatedFromTemplate, None) not in np.pubinfo
+
+
 def test_sign_substitutes_placeholder_with_artifact_code() -> None:
     # The ephemeral profile holds in-memory RSA keys, so signing works offline.
     builder = _builder()

@@ -58,6 +58,19 @@ def test_supersedes_triple_and_pubinfo():
     assert (None, NPX.introduces, None) not in np.pubinfo
 
 
+def test_supersession_tags_nanopub_type_and_template():
+    ntemplate = rdflib.Namespace("https://w3id.org/np/o/ntemplate/")
+    type_uri = "https://w3id.org/peh/terms/BioChemEntity"
+    template_uri = "https://w3id.org/np/RAhSlIuuw5YqmMoyyvmy5GL3qIhs7sp14i6x2y3DCOhXM"
+    builder = SupersessionBuilder(nanopub_types=[type_uri], template=template_uri)
+    g = rdflib.Graph()
+    g.add((rdflib.URIRef(f"{NAMESPACE}RAexample"), RDFS.label, Literal("A")))
+    np = builder.build(g, supersedes_np_uri="https://w3id.org/np/RAoldnp")
+    np_ref = np.metadata.namespace[""]
+    assert (np_ref, NPX.hasNanopubType, rdflib.URIRef(type_uri)) in np.pubinfo
+    assert (np_ref, ntemplate.wasCreatedFromTemplate, rdflib.URIRef(template_uri)) in np.pubinfo
+
+
 def test_supersession_preserves_fixed_uris_when_signed():
     # Mint two real terms first, then supersede term A to add a link to term B.
     batch = _mint_two()
