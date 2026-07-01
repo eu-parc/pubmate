@@ -5,6 +5,7 @@ import click
 import rdflib
 
 from pubmate.defining import DefiningNanopubBuilder
+from pubmate.utils import materialize_nanopub
 
 logging.basicConfig(level=logging.INFO, format="::%(levelname)s:: %(message)s")
 logger = logging.getLogger(__name__)
@@ -61,9 +62,7 @@ def cli(assertion_folder: pathlib.Path, namespace: str, pattern: str) -> None:
             introduces = str(next(iter(subjects))) if len(subjects) == 1 else None
 
             np = DefiningNanopubBuilder(namespace).build(assertion, introduces=introduces)
-            np.sign()  # ephemeral key: assigns trusty + signature offline
-            if not np.is_valid:
-                raise ValueError("signed nanopub failed validity check")
+            materialize_nanopub(np)  # signs and validates the exact serialized artifact
         except Exception as exc:  # noqa: BLE001 - report any failure per file
             failures.append((path.name, str(exc)))
             logger.error("INVALID %s: %s", path.name, exc)

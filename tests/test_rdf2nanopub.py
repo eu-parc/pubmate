@@ -1,7 +1,9 @@
 import pytest
 import rdflib
+from rdflib.namespace import RDF, RDFS
 
-from pubmate.rdf2nanopub import NanopubGenerator
+from pubmate.defining import DefiningNanopubBuilder
+from pubmate.rdf2nanopub import NanopubGenerator, sign_publish_materialized
 
 
 def test_publish_sequence_uses_none_supersedes_by_default() -> None:
@@ -69,3 +71,37 @@ def test_check_nanopub_existence_queries_client_with_obj_keyword() -> None:
 
     assert generator.check_nanopub_existence("https://example.org/some-uri") is True
     assert dummy_client.called_obj == "https://example.org/some-uri"
+
+
+def test_sign_publish_materialized_posts_validated_trig(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    class DummyResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+    def fake_post(url: str, *, headers: dict[str, str], data: bytes, timeout: int) -> DummyResponse:
+        captured["url"] = url
+        captured["headers"] = headers
+        captured["data"] = data
+        captured["timeout"] = timeout
+        return DummyResponse()
+
+    monkeypatch.setattr("pubmate.rdf2nanopub.requests.post", fake_post)
+
+    builder = DefiningNanopubBuilder("https://example.org/terms/")
+    assertion = builder.make_assertion(
+        [
+            (RDF.type, RDFS.Class),
+            (RDFS.comment, rdflib.Literal("line one\nline two")),
+        ]
+    )
+    np = builder.build(assertion)
+
+    artifact = sign_publish_materialized(np, dry_run=False)
+
+    assert captured["headers"] == {"Content-Type": "application/trig"}
+    assert captured["data"] == artifact.trig.encode("utf-8")
+    assert captured["timeout"] == 30
+    assert str(captured["url"]).startswith("https://")
+    assert np.published is True

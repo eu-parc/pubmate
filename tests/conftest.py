@@ -6,7 +6,7 @@ def pytest_addoption(parser) -> None:
         "--pubmate-run-testserver-publish",
         action="store",
         default=None,
-        help="Value for PUBMATE_RUN_TESTSERVER_PUBLISH (default: 1).",
+        help="Value for PUBMATE_RUN_TESTSERVER_PUBLISH (default: 0).",
     )
     parser.addoption(
         "--pubmate-testsuite-key",
@@ -35,7 +35,7 @@ def pytest_configure(config) -> None:
     run_nanopub_existence_check = config.getoption("--pubmate-run-nanopub-existence-check")
 
     os.environ["PUBMATE_RUN_TESTSERVER_PUBLISH"] = run_testserver_publish or os.getenv(
-        "PUBMATE_RUN_TESTSERVER_PUBLISH", "1"
+        "PUBMATE_RUN_TESTSERVER_PUBLISH", "0"
     )
     os.environ["PUBMATE_TESTSUITE_KEY"] = testsuite_key or os.getenv("PUBMATE_TESTSUITE_KEY", "rsa-key1")
     os.environ["PUBMATE_TESTSUITE_REF"] = testsuite_ref or os.getenv("PUBMATE_TESTSUITE_REF", "main")

@@ -16,11 +16,10 @@ import rdflib
 
 from pubmate.cli._signing import resolve_signing
 from pubmate.defining import DefiningNanopubBuilder
-from pubmate.idmap import IdMap, IdMapEntry
+from pubmate.idmap import IdMap
 from pubmate.migrate import migrate_terms
 from pubmate.minting import SequentialMinter
 from pubmate.supersede import SupersessionBuilder
-from pubmate.utils import serialize_nanopub
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -41,21 +40,45 @@ def _code(np_uri: str) -> str:
 
 
 @click.command()
-@click.option("--assertion-folder", "-a", required=True, type=click.Path(exists=True, file_okay=False, path_type=pathlib.Path))
+@click.option(
+    "--assertion-folder", "-a", required=True, type=click.Path(exists=True, file_okay=False, path_type=pathlib.Path)
+)
 @click.option("--namespace", default="https://w3id.org/peh/biochementities/", show_default=True)
-@click.option("--output-dir", required=True, type=click.Path(file_okay=False, path_type=pathlib.Path), help="Where to write all minted .trig nanopubs (defining + superseding).")
-@click.option("--id-map-file", type=click.Path(dir_okay=False, path_type=pathlib.Path), help="TSV id-map to write/merge (old_id -> thing_uri, np_uri).")
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=pathlib.Path),
+    help="Where to write all minted .trig nanopubs (defining + superseding).",
+)
+@click.option(
+    "--id-map-file",
+    type=click.Path(dir_okay=False, path_type=pathlib.Path),
+    help="TSV id-map to write/merge (old_id -> thing_uri, np_uri).",
+)
 @click.option("--orcid-id")
 @click.option("--name")
-@click.option("--default-suggester", help="ORCID attributed as the suggester (prov:wasAttributedTo) for any term that carries none — e.g. the contributor of an existing batch being migrated.")
-@click.option("--nanopub-type", "nanopub_types", multiple=True, help="URI tagged in pubinfo as npx:hasNanopubType on every nanopub (repeatable).")
-@click.option("--template", help="Assertion-template URI tagged in pubinfo as nt:wasCreatedFromTemplate on every nanopub (for Nanodash rendering).")
+@click.option(
+    "--default-suggester",
+    help="ORCID attributed as the suggester (prov:wasAttributedTo) for any term that carries none — e.g. the contributor of an existing batch being migrated.",
+)
+@click.option(
+    "--nanopub-type",
+    "nanopub_types",
+    multiple=True,
+    help="URI tagged in pubinfo as npx:hasNanopubType on every nanopub (repeatable).",
+)
+@click.option(
+    "--template",
+    help="Assertion-template URI tagged in pubinfo as nt:wasCreatedFromTemplate on every nanopub (for Nanodash rendering).",
+)
 @click.option("--part-of", help="URI each term links to via dcterms:isPartOf in its assertion (e.g. the vocabulary).")
 @click.option("--private-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--public-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--intro-nanopub-uri")
 @click.option("--test-server", is_flag=True, help="Publish to the nanopub test server (with --private-key).")
-@click.option("--use-testsuite-keys", is_flag=True, help="Sign with nanopub-testsuite-connector key material (test server).")
+@click.option(
+    "--use-testsuite-keys", is_flag=True, help="Sign with nanopub-testsuite-connector key material (test server)."
+)
 @click.option("--testsuite-key", default="rsa-key1", show_default=True, hidden=True)
 @click.option("--testsuite-ref", default="main", show_default=True, hidden=True)
 @click.option("--dry-run", is_flag=True, help="Sign only (offline); do not publish to the network.")
@@ -89,18 +112,30 @@ def cli(
     skipped, so the migration is resumable.
     """
     signing = resolve_signing(
-        orcid_id=orcid_id, name=name, private_key=private_key, public_key=public_key,
-        intro_nanopub_uri=intro_nanopub_uri, use_testsuite_keys=use_testsuite_keys,
-        testsuite_key=testsuite_key, testsuite_ref=testsuite_ref, test_server=test_server, dry_run=dry_run,
+        orcid_id=orcid_id,
+        name=name,
+        private_key=private_key,
+        public_key=public_key,
+        intro_nanopub_uri=intro_nanopub_uri,
+        use_testsuite_keys=use_testsuite_keys,
+        testsuite_key=testsuite_key,
+        testsuite_ref=testsuite_ref,
+        test_server=test_server,
+        dry_run=dry_run,
     )
     builder = DefiningNanopubBuilder(
-        namespace, profile=signing.profile, test_server=signing.test_server,
-        nanopub_types=nanopub_types, template=template,
+        namespace,
+        profile=signing.profile,
+        test_server=signing.test_server,
+        nanopub_types=nanopub_types,
+        template=template,
     )
     minter = SequentialMinter(builder, default_suggester_orcid=default_suggester)
     supersession = SupersessionBuilder(
-        profile=signing.profile, test_server=signing.test_server,
-        nanopub_types=nanopub_types, template=template,
+        profile=signing.profile,
+        test_server=signing.test_server,
+        nanopub_types=nanopub_types,
+        template=template,
     )
 
     files = sorted(assertion_folder.glob(pattern))
@@ -114,18 +149,25 @@ def cli(
         graph.parse(path, format="turtle")
         assertions[_term_subject(graph, namespace, path)] = graph
 
-    existing = IdMap.from_tsv(id_map_file.read_text(encoding="utf-8")) if id_map_file and id_map_file.exists() else IdMap()
+    existing = (
+        IdMap.from_tsv(id_map_file.read_text(encoding="utf-8")) if id_map_file and id_map_file.exists() else IdMap()
+    )
 
     result = migrate_terms(
-        assertions, namespace=namespace, minter=minter, supersession_builder=supersession,
-        existing=existing, dry_run=dry_run, part_of=part_of,
+        assertions,
+        namespace=namespace,
+        minter=minter,
+        supersession_builder=supersession,
+        existing=existing,
+        dry_run=dry_run,
+        part_of=part_of,
     )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for minted in result.defining.terms:
-        (output_dir / f"{_code(minted.np_uri)}.trig").write_text(serialize_nanopub(minted.nanopub), encoding="utf-8")
+        (output_dir / f"{_code(minted.np_uri)}.trig").write_text(minted.artifact.trig, encoding="utf-8")
     for sup in result.superseding:
-        (output_dir / f"{_code(sup.np_uri)}.trig").write_text(serialize_nanopub(sup.nanopub), encoding="utf-8")
+        (output_dir / f"{_code(sup.np_uri)}.trig").write_text(sup.artifact.trig, encoding="utf-8")
 
     if id_map_file is not None:
         id_map_file.parent.mkdir(parents=True, exist_ok=True)

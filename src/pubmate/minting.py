@@ -29,8 +29,8 @@ import rdflib
 
 from pubmate._nanopub_build import preferred_label
 from pubmate.defining import DefiningNanopubBuilder
-from pubmate.rdf2nanopub import sign_and_publish
-from pubmate.utils import serialize_nanopub
+from pubmate.rdf2nanopub import sign_publish_materialized
+from pubmate.utils import NanopubArtifact
 
 logger = logging.getLogger(__name__)
 
@@ -67,9 +67,7 @@ def term_input_from_assertion(
     The original term URI becomes the returned ``TermInput.term_id`` (the id-map
     key) unless ``term_id`` is given.
     """
-    subjects = {
-        s for s in assertion.subjects() if isinstance(s, rdflib.URIRef) and str(s).startswith(namespace)
-    }
+    subjects = {s for s in assertion.subjects() if isinstance(s, rdflib.URIRef) and str(s).startswith(namespace)}
     if len(subjects) != 1:
         raise ValueError(
             f"expected exactly one subject in namespace {namespace!r}, found {len(subjects)}: {sorted(map(str, subjects))}"
@@ -129,6 +127,7 @@ class MintedTerm:
     thing_uri: str
     np_uri: str
     nanopub: nanopub.Nanopub
+    artifact: NanopubArtifact | None = None
 
 
 @dataclass
@@ -185,10 +184,11 @@ class SequentialMinter:
             label=term.label,
             derived_from=term.derived_from,
         )
-        np_uri = sign_and_publish(np, dry_run=dry_run)
+        artifact = sign_publish_materialized(np, dry_run=dry_run)
+        np_uri = artifact.uri
         thing_uri = f"{self.builder.namespace}{_artifact_code(np_uri)}"
         logger.info("Minted %s -> %s (%s)", term.term_id, thing_uri, np_uri)
-        return MintedTerm(term_id=term.term_id, thing_uri=thing_uri, np_uri=np_uri, nanopub=np)
+        return MintedTerm(term_id=term.term_id, thing_uri=thing_uri, np_uri=np_uri, nanopub=np, artifact=artifact)
 
     def mint_all(
         self,
@@ -221,8 +221,6 @@ class SequentialMinter:
                 continue
             minted = self.mint(term, dry_run=dry_run)
             if output_dir is not None:
-                (output_dir / f"{term.term_id}.trig").write_text(
-                    serialize_nanopub(minted.nanopub), encoding="utf-8"
-                )
+                (output_dir / f"{term.term_id}.trig").write_text(minted.artifact.trig, encoding="utf-8")
             batch.terms.append(minted)
         return batch

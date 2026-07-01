@@ -90,9 +90,7 @@ def order_terms(references: Mapping[str, Set[str]]) -> Ordering:
     """
     remaining: Set[str] = set(references)
     # Restrict each term's refs to in-batch targets, ignore self-references.
-    refs: Dict[str, Set[str]] = {
-        t: {r for r in references[t] if r in remaining and r != t} for t in remaining
-    }
+    refs: Dict[str, Set[str]] = {t: {r for r in references[t] if r in remaining and r != t} for t in remaining}
 
     placed: Set[str] = set()
     order: List[str] = []

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pathlib
+from dataclasses import dataclass
 from typing import Mapping, Optional
 
 import nanopub
@@ -31,6 +32,14 @@ WELL_KNOWN_PREFIXES: dict[str, str] = {
 #: alphabetically. ``this:`` (the nanopub) and ``sub:`` (its sub-graphs) anchor
 #: every nanopub, so leading with them makes the structure read top-down.
 _LEADING_PREFIXES = ("this", "sub")
+
+
+@dataclass(frozen=True)
+class NanopubArtifact:
+    """A signed nanopub rendered as validated TriG."""
+
+    uri: str
+    trig: str
 
 
 def load_nanopub_assertion(path: str | pathlib.Path) -> rdflib.Graph:
@@ -73,9 +82,10 @@ def serialize_nanopub(np: nanopub.Nanopub, *, prefixes: Optional[Mapping[str, st
     is data-driven rather than relying on graph names (a plain ASCII sort of the
     graph URIs happens to match only because "Head" is capitalized — fragile).
 
-    Graph *order* carries no RDF semantics (named graphs are an unordered set),
-    so the result is equivalent to ``np.rdf.serialize(format="trig")``; it is
-    purely a nicer rendering.
+    Graph *order* carries no RDF semantics (named graphs are an unordered set).
+    The rendered text must still round-trip to the same RDF quads, so graph
+    bodies are not re-indented: leading spaces inside triple-quoted multiline
+    literals are RDF data, not mere formatting.
     """
     dataset = np.rdf
     namespace_manager = dataset.namespace_manager
@@ -101,9 +111,51 @@ def serialize_nanopub(np: nanopub.Nanopub, *, prefixes: Optional[Mapping[str, st
             if stripped.startswith("@prefix"):
                 prefix_lines.add(stripped)
             elif stripped:
-                body.append("    " + line.rstrip())
+                body.append(line.rstrip())
 
         blocks.append(f"{graph_id.n3(namespace_manager)} {{\n" + "\n".join(body) + "\n}")
 
     header = "\n".join(sorted(prefix_lines, key=_prefix_sort_key))
     return f"{header}\n\n" + "\n\n".join(blocks) + "\n"
+
+
+def materialize_nanopub(
+    np: nanopub.Nanopub,
+    *,
+    prefixes: Optional[Mapping[str, str]] = None,
+) -> NanopubArtifact:
+    """Sign, serialize, reparse, and verify the exact TriG artifact.
+
+    This is the boundary used before storing or publishing a nanopub. It protects
+    against serializer-level discrepancies where a valid signed in-memory graph
+    would be written as TriG that reparses to different RDF, and therefore to a
+    different trusty hash.
+    """
+    if not np.source_uri:
+        np.sign()
+
+    np_uri = np.metadata.np_uri
+    if np_uri is None:
+        raise ValueError("no URI was assigned to the nanopublication after signing.")
+
+    trig = serialize_nanopub(np, prefixes=prefixes)
+    reparsed = rdflib.Dataset()
+    reparsed.parse(data=trig, format="trig")
+
+    original_quads = set(np.rdf.quads((None, None, None, None)))
+    reparsed_quads = set(reparsed.quads((None, None, None, None)))
+    if reparsed_quads != original_quads:
+        raise ValueError(
+            "serialized nanopub does not round-trip to the signed RDF graph; "
+            "refusing to store or publish an artifact with a different trusty hash."
+        )
+
+    loaded = nanopub.Nanopub(rdf=reparsed)
+    loaded_uri = str(loaded.metadata.np_uri)
+    artifact_uri = str(np_uri)
+    if loaded_uri != artifact_uri:
+        raise ValueError(f"serialized nanopub URI mismatch: expected {artifact_uri}, got {loaded_uri}")
+    if not loaded.is_valid:
+        raise ValueError("serialized nanopub failed trusty/signature validation.")
+
+    return NanopubArtifact(uri=artifact_uri, trig=trig)

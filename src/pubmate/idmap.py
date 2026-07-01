@@ -65,10 +65,7 @@ class IdMap:
 
         The minter's ``term_id`` is used as the old identifier.
         """
-        return cls(
-            IdMapEntry(old_id=t.term_id, thing_uri=t.thing_uri, np_uri=t.np_uri)
-            for t in batch.terms
-        )
+        return cls(IdMapEntry(old_id=t.term_id, thing_uri=t.thing_uri, np_uri=t.np_uri) for t in batch.terms)
 
     # -- access -----------------------------------------------------------
 

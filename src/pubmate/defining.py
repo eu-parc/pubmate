@@ -64,9 +64,7 @@ class DefiningNanopubBuilder:
         template: Optional[str] = None,
     ):
         if not namespace:
-            raise ValueError(
-                "namespace is required (e.g. 'https://example.org/terms/')."
-            )
+            raise ValueError("namespace is required (e.g. 'https://example.org/terms/').")
         self.namespace = namespace
         self.license = license
         self.test_server = test_server

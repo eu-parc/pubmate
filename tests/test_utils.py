@@ -1,9 +1,10 @@
 import rdflib
+import nanopub
 from rdflib import Literal
 from rdflib.namespace import RDF, RDFS
 
 from pubmate.defining import DefiningNanopubBuilder
-from pubmate.utils import serialize_nanopub
+from pubmate.utils import materialize_nanopub, serialize_nanopub
 
 NAMESPACE = "https://w3id.org/peh/biochementities/"
 SUGGESTER = "https://orcid.org/0000-0002-1825-0097"
@@ -12,9 +13,7 @@ CANONICAL_ORDER = ["head", "assertion", "provenance", "pubinfo"]
 
 def _nanopub():
     builder = DefiningNanopubBuilder(NAMESPACE)
-    assertion = builder.make_assertion(
-        [(RDF.type, RDFS.Class), (RDFS.label, Literal("Caffeine"))]
-    )
+    assertion = builder.make_assertion([(RDF.type, RDFS.Class), (RDFS.label, Literal("Caffeine"))])
     return builder.build(assertion, suggester_orcid=SUGGESTER, label="Definition of Caffeine")
 
 
@@ -64,3 +63,23 @@ def test_works_after_signing():
     trig = serialize_nanopub(np)
     assert _graph_block_order(trig) == list(CANONICAL_ORDER)
     assert "~~~ARTIFACTCODE~~~" not in trig
+
+
+def test_materialized_multiline_literal_keeps_trusty_hash():
+    builder = DefiningNanopubBuilder(NAMESPACE)
+    assertion = builder.make_assertion(
+        [
+            (RDF.type, RDFS.Class),
+            (RDFS.comment, Literal("line one\nline two")),
+        ]
+    )
+    np = builder.build(assertion, suggester_orcid=SUGGESTER, label="Multiline test")
+
+    artifact = materialize_nanopub(np)
+    reparsed = rdflib.Dataset()
+    reparsed.parse(data=artifact.trig, format="trig")
+    loaded = nanopub.Nanopub(rdf=reparsed)
+
+    assert loaded.is_valid
+    assert str(loaded.metadata.np_uri) == artifact.uri
+    assert {str(o) for _, _, o, _ in reparsed.quads((None, RDFS.comment, None, None))} == {"line one\nline two"}

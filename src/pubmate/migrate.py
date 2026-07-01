@@ -26,12 +26,12 @@ import rdflib
 from rdflib.namespace import DCTERMS
 
 from pubmate._nanopub_build import preferred_label
-from pubmate.defining import DefiningNanopubBuilder
 from pubmate.idmap import IdMap, IdMapEntry
 from pubmate.minting import MintBatch, MintedTerm, SequentialMinter, term_input_from_assertion
-from pubmate.rdf2nanopub import sign_and_publish
+from pubmate.rdf2nanopub import sign_publish_materialized
 from pubmate.references import order_terms, referenced_terms, split_references
 from pubmate.supersede import SupersessionBuilder
+from pubmate.utils import NanopubArtifact
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,7 @@ class MintedSupersession:
     supersedes_np_uri: str
     np_uri: str
     nanopub: nanopub.Nanopub
+    artifact: NanopubArtifact | None = None
 
 
 @dataclass
@@ -152,7 +153,10 @@ def migrate_terms(
             continue
         g = assertions[old]
         split = split_references(
-            g, namespace=namespace, subject=subjects[old], resolved_uris=resolved_thing,
+            g,
+            namespace=namespace,
+            subject=subjects[old],
+            resolved_uris=resolved_thing,
             batch_targets=batch_ids,
         )
         if split.dangling:
@@ -160,16 +164,19 @@ def migrate_terms(
             logger.error(
                 "%s: %d reference(s) to terms absent from the batch (dangling foreign "
                 "key, likely a stale/deduplicated id); dropped from the minted nanopub: %s",
-                old, len(split.dangling), [str(o) for _, _, o in split.dangling],
+                old,
+                len(split.dangling),
+                [str(o) for _, _, o in split.dangling],
             )
         term = term_input_from_assertion(
-            split.kept, namespace=namespace, thing_uri=minter.builder.thing_uri, part_of=part_of,
+            split.kept,
+            namespace=namespace,
+            thing_uri=minter.builder.thing_uri,
+            part_of=part_of,
         )
         minted = minter.mint(term, dry_run=dry_run)
         result.defining.terms.append(minted)
-        result.id_map.add(
-            IdMapEntry(old_id=old, thing_uri=minted.thing_uri, np_uri=minted.np_uri), overwrite=True
-        )
+        result.id_map.add(IdMapEntry(old_id=old, thing_uri=minted.thing_uri, np_uri=minted.np_uri), overwrite=True)
         resolved_thing[old] = minted.thing_uri
         minted_by_term[old] = minted
         if split.deferred:
@@ -187,17 +194,30 @@ def migrate_terms(
         minted = minted_by_term[old]
         new_subject = rdflib.URIRef(minted.thing_uri)
         full = _resolve_all(
-            assertions[old], namespace=namespace, subject=subjects[old],
-            new_subject=new_subject, thing_uris=resolved_thing, part_of=part_of,
+            assertions[old],
+            namespace=namespace,
+            subject=subjects[old],
+            new_subject=new_subject,
+            thing_uris=resolved_thing,
+            part_of=part_of,
         )
         sup_np = supersession_builder.build(
-            full, supersedes_np_uri=minted.np_uri, label=_label(full, new_subject),
+            full,
+            supersedes_np_uri=minted.np_uri,
+            label=_label(full, new_subject),
             suggester_orcid=minter.default_suggester_orcid,
         )
-        sup_uri = sign_and_publish(sup_np, dry_run=dry_run)
+        artifact = sign_publish_materialized(sup_np, dry_run=dry_run)
+        sup_uri = artifact.uri
         logger.info("Superseded %s (%s) -> %s", old, minted.np_uri, sup_uri)
         result.superseding.append(
-            MintedSupersession(term_id=old, supersedes_np_uri=minted.np_uri, np_uri=sup_uri, nanopub=sup_np)
+            MintedSupersession(
+                term_id=old,
+                supersedes_np_uri=minted.np_uri,
+                np_uri=sup_uri,
+                nanopub=sup_np,
+                artifact=artifact,
+            )
         )
 
     return result

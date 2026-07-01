@@ -3,31 +3,56 @@ from pathlib import Path
 
 import nanopub
 import rdflib
+import requests
 
 from typing import Optional
+
+from pubmate.utils import NanopubArtifact, materialize_nanopub
 
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+PUBLISH_TIMEOUT_SECONDS = 30
 
-def sign_and_publish(np: "nanopub.Nanopub", dry_run: bool = True) -> str:
+
+def _publish_artifact(np: "nanopub.Nanopub", artifact: NanopubArtifact) -> None:
+    """Publish the exact TriG artifact that was validated locally."""
+    use_server = np._conf.use_server  # nanopub-py exposes this only on the conf internals.
+    logger.info("Publishing to the nanopub server %s", use_server)
+    response = requests.post(
+        use_server,
+        headers={"Content-Type": "application/trig"},
+        data=artifact.trig.encode("utf-8"),
+        timeout=PUBLISH_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    np.published = True
+
+
+def sign_publish_materialized(np: "nanopub.Nanopub", dry_run: bool = True) -> NanopubArtifact:
     """Sign an already-built nanopub and, unless ``dry_run``, publish it.
 
     Signing is offline (it uses the nanopub's own configured profile/keys) and
-    assigns the trusty URI; publishing requires the network. Returns the signed
-    nanopub URI. With ``dry_run=True`` the nanopub is only signed, which is
-    enough to read back its minted URI/artifact code.
+    assigns the trusty URI. The exact serialized TriG is reparsed and validated
+    before it is returned or sent to the server, so stored and published artifacts
+    share one checked representation.
     """
-    np.sign()
-    np_uri = np.metadata.np_uri
-    if np_uri is None:
-        raise ValueError("no URI was assigned to the nanopublication after signing.")
+    artifact = materialize_nanopub(np)
     if not dry_run:
-        publication_info = np.publish()
-        logger.info(f"Nanopub published: {publication_info}")
-    return str(np_uri)
+        _publish_artifact(np, artifact)
+        logger.info("Nanopub published: %s", artifact.uri)
+    return artifact
+
+
+def sign_and_publish(np: "nanopub.Nanopub", dry_run: bool = True) -> str:
+    """Sign/publish a nanopub and return its URI.
+
+    Prefer :func:`sign_publish_materialized` when the caller will store the
+    serialized TriG artifact.
+    """
+    return sign_publish_materialized(np, dry_run=dry_run).uri
 
 
 class NanopubGenerator:

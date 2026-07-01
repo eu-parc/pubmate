@@ -30,6 +30,7 @@ def _assertion(subject_id, *, refs=(), externals=()):
 
 # -- reference detection ---------------------------------------------------
 
+
 def test_referenced_terms_picks_only_in_namespace_other_terms():
     g, s = _assertion("a", refs=["b", "c"], externals=["https://identifiers.org/cas:1-2-3"])
     assert referenced_terms(g, namespace=NS, subject=s) == {TERMS["b"].toPython(), TERMS["c"].toPython()}
@@ -39,13 +40,14 @@ def test_iter_term_references_excludes_self_and_top_parent():
     g = rdflib.Graph()
     s = TERMS["a"]
     g.add((s, RDFS.subClassOf, PEH.BioChemEntity))  # top parent, external ns
-    g.add((s, PEH.isIsomerOf, s))                    # self-reference
-    g.add((s, PEH.isMetaboliteOf, TERMS["b"]))       # real inter-term ref
+    g.add((s, PEH.isIsomerOf, s))  # self-reference
+    g.add((s, PEH.isMetaboliteOf, TERMS["b"]))  # real inter-term ref
     refs = list(iter_term_references(g, namespace=NS, subject=s))
     assert refs == [(s, PEH.isMetaboliteOf, TERMS["b"])]
 
 
 # -- ordering --------------------------------------------------------------
+
 
 def test_order_acyclic_places_dependencies_first():
     # a -> b -> c ; expect c, b, a
@@ -90,6 +92,7 @@ def test_order_is_deterministic():
 
 # -- splitting -------------------------------------------------------------
 
+
 def test_split_rewrites_resolved_and_holds_back_deferred():
     g, s = _assertion("a", refs=["b", "c"])
     # only b is minted so far; both b and c are in the batch
@@ -111,9 +114,7 @@ def test_split_rewrites_resolved_and_holds_back_deferred():
 def test_split_with_all_resolved_has_no_deferred():
     g, s = _assertion("a", refs=["b"])
     resolved = {TERMS["b"].toPython(): NS + "RAbbb"}
-    split = split_references(
-        g, namespace=NS, subject=s, resolved_uris=resolved, batch_targets={TERMS["b"].toPython()}
-    )
+    split = split_references(g, namespace=NS, subject=s, resolved_uris=resolved, batch_targets={TERMS["b"].toPython()})
     assert split.deferred == []
     assert split.dangling == []
     assert (s, PEH.isMetaboliteOf, rdflib.URIRef(NS + "RAbbb")) in split.kept
@@ -122,9 +123,7 @@ def test_split_with_all_resolved_has_no_deferred():
 def test_split_drops_dangling_reference():
     # c is referenced but neither resolved nor in the batch -> dangling, dropped
     g, s = _assertion("a", refs=["c"])
-    split = split_references(
-        g, namespace=NS, subject=s, resolved_uris={}, batch_targets={TERMS["a"].toPython()}
-    )
+    split = split_references(g, namespace=NS, subject=s, resolved_uris={}, batch_targets={TERMS["a"].toPython()})
     assert split.deferred == []
     assert split.dangling == [(s, PEH.isMetaboliteOf, TERMS["c"])]
     # dropped from the minted graph (a published nanopub must not carry an

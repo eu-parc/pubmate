@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 import rdflib
+import requests
 from rdflib.namespace import RDF, RDFS
 
 from pubmate.rdf2nanopub import NanopubGenerator
@@ -25,7 +26,10 @@ def test_publish_to_test_server_with_testsuite_connector_keys() -> None:
         subject = rdflib.URIRef(f"https://example.org/pubmate/test/{uuid4()}")
         assertion.add((subject, RDF.type, RDFS.Resource))
         assertion.add((subject, RDFS.label, rdflib.Literal("Pubmate testsuite connector publish test", lang="en")))
-        np_uri = generator.publish_single(assertion, dry_run=False)
+        try:
+            np_uri = generator.publish_single(assertion, dry_run=False)
+        except requests.exceptions.RequestException as exc:
+            pytest.skip(f"Could not publish to nanopub test server (network or registry issue): {exc}")
 
     pubmate_warnings = [
         w for w in recorded if issubclass(w.category, DeprecationWarning) and "/src/pubmate/" in str(w.filename)

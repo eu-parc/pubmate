@@ -58,9 +58,7 @@ def test_inherit_default_does_not_cross_files(tmp_path) -> None:
     without_default.write_text("terms:\n  - name: Beta\n", encoding="utf-8")
     out = tmp_path / "combined.yaml"
 
-    result = _run(
-        [str(out), str(with_default), str(without_default), "--target", "terms", "--inherit", "suggester"]
-    )
+    result = _run([str(out), str(with_default), str(without_default), "--target", "terms", "--inherit", "suggester"])
 
     assert result.exit_code == 0, result.output
     combined = yaml.safe_load(out.read_text(encoding="utf-8"))
