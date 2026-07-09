@@ -126,6 +126,57 @@ def test_supersede_resolves_interterm_reference_to_new_thing_uri():
     assert rdflib.URIRef(B) not in set(sup_a.nanopub.assertion.objects())
 
 
+def test_resubmission_under_thing_uri_unchanged_is_skipped():
+    first = _run([_term("alpha", "Alpha")])
+    thing = first.id_map["alpha"].thing_uri
+
+    again = _run([_term(thing, "Alpha")], existing=first.id_map)
+
+    assert again.minted.terms == []
+    assert again.superseded == []
+    assert again.skipped == ["alpha"]
+    # Still a single row, keyed by the original old id, untouched.
+    assert len(again.id_map) == 1
+    assert again.id_map["alpha"] == first.id_map["alpha"]
+
+
+def test_resubmission_under_thing_uri_drifted_is_superseded_not_reminted():
+    first = _run([_term("alpha", "Alpha")])
+    before = first.id_map["alpha"]
+
+    drifted = _run([_term(before.thing_uri, "Alpha (edited)")], existing=first.id_map)
+
+    # The issue-#10 scenario: no duplicate term, a superseding nanopub instead.
+    assert drifted.minted.terms == []
+    assert [s.term_id for s in drifted.superseded] == ["alpha"]
+    sup = drifted.superseded[0]
+    assert sup.supersedes_np_uri == before.np_uri
+    assert (None, NPX.supersedes, rdflib.URIRef(before.np_uri)) in sup.nanopub.pubinfo
+    assert rdflib.URIRef(before.thing_uri) in set(sup.nanopub.assertion.subjects())
+    # Single row, keyed by the original old id; identity kept, version advanced.
+    assert len(drifted.id_map) == 1
+    after = drifted.id_map["alpha"]
+    assert after.thing_uri == before.thing_uri
+    assert after.np_uri == sup.np_uri != before.np_uri
+
+
+def test_supersede_keeps_references_already_given_as_thing_uris():
+    A, B = NAMESPACE + "a", NAMESPACE + "b"
+    first = _run([_term_ref(A, "Alpha", ref_uri=B), _term_ref(B, "Beta")])
+    thing_a = first.id_map[A].thing_uri
+    thing_b = first.id_map[B].thing_uri
+
+    # Re-submit a drifted alpha under its thing URI, referencing beta by *its*
+    # thing URI -- neither reference form may be dropped as dangling.
+    result = _run(
+        [_term_ref(thing_a, "Alpha (edited)", ref_uri=thing_b)],
+        existing=first.id_map,
+    )
+    assert [s.term_id for s in result.superseded] == [A]
+    objs = set(result.superseded[0].nanopub.assertion.objects(rdflib.URIRef(thing_a), REL))
+    assert objs == {rdflib.URIRef(thing_b)}
+
+
 def test_mixed_batch_mints_skips_and_supersedes():
     first = _run([_term("keep", "Keep"), _term("edit", "Edit")])
     batch = [

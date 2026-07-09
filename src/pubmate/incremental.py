@@ -17,6 +17,14 @@ id-map and take one of three actions:
   ``fingerprint`` are repointed at the new version. The thing URI is unchanged --
   only the defining/superseding nanopub URI advances, chained by supersession.
 
+A term is matched against the id-map by **either identifier**: the old id the map
+is keyed by, or the minted thing URI it resolved to (:meth:`pubmate.idmap.IdMap.resolve`)
+-- so re-submitting a term under its current identifier supersedes rather than
+minting a duplicate. Whichever form was submitted, the id-map row stays keyed by
+the original old id (one row per term, stable redirect table, linear supersedes
+chain). References inside a re-submitted assertion may likewise use either form;
+both resolve to the target's thing URI (:attr:`pubmate.idmap.IdMap.resolution_map`).
+
 Note the mint path (new terms) still mints the assertion *as given*; reference
 resolution is applied on the supersede path, where every referenced term is
 guaranteed to be minted already.
@@ -93,7 +101,9 @@ def publish_incremental(
     for term in terms:
         current_fp = fingerprint_term(term, minter.builder, default_suggester=default_suggester)
 
-        if term.term_id not in result.id_map:
+        entry = result.id_map.resolve(term.term_id)
+
+        if entry is None:
             minted = minter.mint(term, dry_run=dry_run)
             result.id_map.add(
                 IdMapEntry(term.term_id, minted.thing_uri, minted.np_uri, current_fp),
@@ -102,24 +112,31 @@ def publish_incremental(
             result.minted.terms.append(minted)
             continue
 
-        entry = result.id_map[term.term_id]
+        # A term may be re-submitted under its *current* thing URI instead of the
+        # old id the map is keyed by; canonicalize to the map key so the term
+        # keeps a single id-map row (and a linear supersedes chain) either way.
+        if entry.old_id != term.term_id:
+            logger.info(
+                "Resolved submitted id %s to existing term %s via its thing URI.",
+                term.term_id, entry.old_id,
+            )
 
         if entry.fingerprint == "":
             logger.warning(
                 "Backfilling baseline fingerprint for legacy term (no prior fingerprint "
                 "to compare against; adopting current build as baseline): %s",
-                term.term_id,
+                entry.old_id,
             )
             result.id_map.add(
-                IdMapEntry(term.term_id, entry.thing_uri, entry.np_uri, current_fp),
+                IdMapEntry(entry.old_id, entry.thing_uri, entry.np_uri, current_fp),
                 overwrite=True,
             )
-            result.skipped.append(term.term_id)
+            result.skipped.append(entry.old_id)
             continue
 
         if entry.fingerprint == current_fp:
-            logger.info("Skipping unchanged term: %s", term.term_id)
-            result.skipped.append(term.term_id)
+            logger.info("Skipping unchanged term: %s", entry.old_id)
+            result.skipped.append(entry.old_id)
             continue
 
         # Drift: supersede against the existing fixed thing URI. Rebuild the
@@ -133,7 +150,7 @@ def publish_incremental(
             namespace=minter.builder.namespace,
             subject=placeholder,
             new_subject=fixed,
-            thing_uris=result.id_map.thing_uri_map,
+            thing_uris=result.id_map.resolution_map,
         )
         sup_np = supersession_builder.build(
             full,
@@ -143,14 +160,14 @@ def publish_incremental(
             derived_from=term.derived_from,
         )
         sup_uri = sign_and_publish(sup_np, dry_run=dry_run)
-        logger.info("Superseded drifted term %s (%s) -> %s", term.term_id, entry.np_uri, sup_uri)
+        logger.info("Superseded drifted term %s (%s) -> %s", entry.old_id, entry.np_uri, sup_uri)
         result.id_map.add(
-            IdMapEntry(term.term_id, entry.thing_uri, sup_uri, current_fp),
+            IdMapEntry(entry.old_id, entry.thing_uri, sup_uri, current_fp),
             overwrite=True,
         )
         result.superseded.append(
             MintedSupersession(
-                term_id=term.term_id,
+                term_id=entry.old_id,
                 supersedes_np_uri=entry.np_uri,
                 np_uri=sup_uri,
                 nanopub=sup_np,
