@@ -31,6 +31,24 @@ def test_add_idempotent_but_rejects_conflict():
     assert id_map["alpha"].thing_uri == "https://example.org/terms/RAdifferent"
 
 
+def test_resolve_matches_old_id_or_thing_uri():
+    entry = _entry()
+    id_map = IdMap([entry])
+    assert id_map.resolve("alpha") == entry
+    assert id_map.resolve("https://example.org/terms/RAa") == entry
+    assert id_map.resolve("https://example.org/terms/RAunknown") is None
+
+
+def test_resolution_map_accepts_either_identifier_form():
+    id_map = IdMap([_entry(), _entry("beta", "https://example.org/terms/RAb", "https://w3id.org/np/RAb")])
+    assert id_map.resolution_map == {
+        "alpha": "https://example.org/terms/RAa",
+        "https://example.org/terms/RAa": "https://example.org/terms/RAa",
+        "beta": "https://example.org/terms/RAb",
+        "https://example.org/terms/RAb": "https://example.org/terms/RAb",
+    }
+
+
 def test_merge_preserves_existing_and_adds_new():
     base = IdMap([_entry("alpha")])
     incoming = IdMap([_entry("beta", "https://example.org/terms/RAb", "https://w3id.org/np/RAb")])

@@ -94,6 +94,19 @@ class IdMap:
     def __getitem__(self, old_id: str) -> IdMapEntry:
         return self._entries[old_id]
 
+    def resolve(self, term_id: str) -> Optional[IdMapEntry]:
+        """The entry whose ``old_id`` *or* ``thing_uri`` equals ``term_id``.
+
+        A term stays reachable under both its identifiers: the old/local id the
+        map is keyed by, and the minted thing URI it resolved to (unique across
+        entries). Returns ``None`` when ``term_id`` matches neither -- i.e. the
+        term is genuinely new.
+        """
+        entry = self._entries.get(term_id)
+        if entry is not None:
+            return entry
+        return next((e for e in self._entries.values() if e.thing_uri == term_id), None)
+
     def __iter__(self) -> Iterator[IdMapEntry]:
         return iter(self._entries.values())
 
@@ -104,6 +117,19 @@ class IdMap:
     def thing_uri_map(self) -> Dict[str, str]:
         """``old_id -> thing URI``."""
         return {e.old_id: e.thing_uri for e in self}
+
+    @property
+    def resolution_map(self) -> Dict[str, str]:
+        """``old_id or thing URI -> thing URI`` (either identifier form).
+
+        A superset of :attr:`thing_uri_map` in which each thing URI also maps to
+        itself, so reference rewriting (:func:`pubmate.references.resolve_references`)
+        recognizes -- rather than drops as dangling -- a reference already given
+        as a thing URI.
+        """
+        mapping = {e.old_id: e.thing_uri for e in self}
+        mapping.update({e.thing_uri: e.thing_uri for e in self})
+        return mapping
 
     @property
     def np_uri_map(self) -> Dict[str, str]:
