@@ -12,9 +12,7 @@ CANONICAL_ORDER = ["head", "assertion", "provenance", "pubinfo"]
 
 def _nanopub():
     builder = DefiningNanopubBuilder(NAMESPACE)
-    assertion = builder.make_assertion(
-        [(RDF.type, RDFS.Class), (RDFS.label, Literal("Caffeine"))]
-    )
+    assertion = builder.make_assertion([(RDF.type, RDFS.Class), (RDFS.label, Literal("Caffeine"))])
     return builder.build(assertion, suggester_orcid=SUGGESTER, label="Definition of Caffeine")
 
 

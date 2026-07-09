@@ -44,8 +44,11 @@ def _term_ref(term_uri: str, label: str, ref_uri: str | None = None) -> TermInpu
 
 def _run(terms, existing=None):
     return publish_incremental(
-        terms, minter=_minter(), supersession_builder=_sup(),
-        existing=existing or IdMap(), dry_run=True,
+        terms,
+        minter=_minter(),
+        supersession_builder=_sup(),
+        existing=existing or IdMap(),
+        dry_run=True,
     )
 
 
@@ -85,9 +88,9 @@ def test_drifted_term_is_superseded_keeping_thing_uri():
     assert rdflib.URIRef(before.thing_uri) in set(sup.nanopub.assertion.subjects())
 
     after = drifted.id_map["alpha"]
-    assert after.thing_uri == before.thing_uri            # identity preserved
-    assert after.np_uri == sup.np_uri != before.np_uri    # version advanced
-    assert after.fingerprint != before.fingerprint        # fingerprint updated
+    assert after.thing_uri == before.thing_uri  # identity preserved
+    assert after.np_uri == sup.np_uri != before.np_uri  # version advanced
+    assert after.fingerprint != before.fingerprint  # fingerprint updated
 
 
 def test_legacy_entry_without_fingerprint_is_backfilled_not_superseded():
@@ -108,7 +111,10 @@ def test_supersede_resolves_interterm_reference_to_new_thing_uri():
     minter1, sup1 = _wrapped(TPL_OLD)
     first = publish_incremental(
         [_term_ref(A, "Alpha", ref_uri=B), _term_ref(B, "Beta")],
-        minter=minter1, supersession_builder=sup1, existing=IdMap(), dry_run=True,
+        minter=minter1,
+        supersession_builder=sup1,
+        existing=IdMap(),
+        dry_run=True,
     )
     thing_a = first.id_map[A].thing_uri
     thing_b = first.id_map[B].thing_uri
@@ -117,7 +123,10 @@ def test_supersede_resolves_interterm_reference_to_new_thing_uri():
     minter2, sup2 = _wrapped(TPL_NEW)
     result = publish_incremental(
         [_term_ref(A, "Alpha", ref_uri=B), _term_ref(B, "Beta")],
-        minter=minter2, supersession_builder=sup2, existing=first.id_map, dry_run=True,
+        minter=minter2,
+        supersession_builder=sup2,
+        existing=first.id_map,
+        dry_run=True,
     )
     sup_a = next(s for s in result.superseded if s.term_id == A)
     objs = set(sup_a.nanopub.assertion.objects(rdflib.URIRef(thing_a), REL))
@@ -180,9 +189,9 @@ def test_supersede_keeps_references_already_given_as_thing_uris():
 def test_mixed_batch_mints_skips_and_supersedes():
     first = _run([_term("keep", "Keep"), _term("edit", "Edit")])
     batch = [
-        _term("keep", "Keep"),          # unchanged
+        _term("keep", "Keep"),  # unchanged
         _term("edit", "Edit (edited)"),  # drifted
-        _term("new", "New"),             # new
+        _term("new", "New"),  # new
     ]
     result = _run(batch, existing=first.id_map)
     assert [m.term_id for m in result.minted.terms] == ["new"]

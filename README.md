@@ -20,6 +20,7 @@ CLI entrypoints provided by this project:
 - `pubmate-yamlconcat`
 - `pubmate-mint`
 - `pubmate-cleanrdf`
+- `pubmate-download-nanopubs`
 - `pubmate-extract-assertions`
 - `pubmate-validate-defining`
 - `pubmate-mint-publish`
@@ -131,6 +132,39 @@ pubmate-mint-publish \
   --intro-nanopub-uri https://w3id.org/np/RA...
 ```
 
+### 6) Download published nanopubs from a query endpoint
+
+Use `pubmate-download-nanopubs` when a query endpoint returns the nanopublication
+URIs you want to mirror locally. The endpoint should return SPARQL results JSON;
+by default Pubmate reads nanopub URIs from the `np` binding and downloads each one
+as `<nanopub-uri>.trig`.
+
+You can pass a complete endpoint URL:
+
+```bash
+pubmate-download-nanopubs \
+  "https://query.knowledgepixels.com/api/RA.../your-query?ontology=https%3A%2F%2Fw3id.org%2Fyourspace%2Fvocabulary" \
+  --output-dir published \
+  --manifest build/nanopub-network-published.tsv
+```
+
+Or split filters into repeatable query parameters:
+
+```bash
+pubmate-download-nanopubs \
+  "https://query.knowledgepixels.com/api/RA.../your-query" \
+  --query-param "ontology=https://w3id.org/yourspace/vocabulary" \
+  --query-param "ontologyNamespace=https://w3id.org/yourspace/vocabulary" \
+  --output-dir published \
+  --manifest build/nanopub-network-published.tsv
+```
+
+Useful options:
+- `--np-column`: read nanopub URIs from a binding other than `np`.
+- `--min-count`: fail if the endpoint returns fewer nanopubs than expected.
+- `--replace`: replace existing `.trig` files in `--output-dir` with exactly the endpoint result set.
+- `--no-validate`: skip parsing each downloaded TriG file as a nanopublication.
+
 ## Real-Life Publishing Checklist
 
 Before real publish:
@@ -139,6 +173,7 @@ Before real publish:
 3. Run `pubmate-validate-defining`, then `pubmate-mint-publish --dry-run`.
 4. Publish a small subset first (e.g., a temporary small assertion folder).
 5. Then publish the full batch.
+6. Use `pubmate-download-nanopubs --replace` to rebuild the local `published` folder from the network when needed.
 
 ## Troubleshooting
 
@@ -148,3 +183,5 @@ Before real publish:
   - verify assertion folder contains `.ttl` files.
 - URI prefix differences:
   - published nanopub URIs may use `purl.org` or `w3id.org` prefixes depending on server behavior.
+- Download endpoint returns no nanopubs:
+  - verify the endpoint returns SPARQL results JSON and that nanopub URIs are in the binding named by `--np-column` (`np` by default).

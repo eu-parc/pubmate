@@ -61,10 +61,7 @@ def test_migrate_resumes_from_existing_idmap(tmp_path):
     out = tmp_path / "out"
     idmap = tmp_path / "id-map.tsv"
     # Pre-seed so the single term is treated as already minted.
-    seed = IdMap.from_tsv(
-        "old_id\tthing_uri\tnp_uri\n"
-        + f"{TERMS['a']}\t{NS}RAseed\thttps://w3id.org/np/RAseed"
-    )
+    seed = IdMap.from_tsv("old_id\tthing_uri\tnp_uri\n" + f"{TERMS['a']}\t{NS}RAseed\thttps://w3id.org/np/RAseed")
     seed.write_tsv(idmap)
 
     result = CliRunner().invoke(

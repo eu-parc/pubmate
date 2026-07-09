@@ -1,6 +1,6 @@
 [project]
 name = "pubmate"
-version = "0.2.2"
+version = "0.2.3"
 description = "Helper tool aiding with publishing nanopublications departing from a linkml schema"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -23,6 +23,7 @@ dev = [
 [project.scripts]
 pubmate-bootstrap-identity = "pubmate.cli.bootstrap_identity:cli"
 pubmate-cleanrdf = "pubmate.cli.cleanrdf:cli"
+pubmate-download-nanopubs = "pubmate.cli.download_nanopubs:cli"
 pubmate-extract-assertions = "pubmate.cli.extract_assertions:cli"
 pubmate-migrate = "pubmate.cli.migrate:cli"
 pubmate-mint = "pubmate.cli.mint:cli"

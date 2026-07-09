@@ -67,9 +67,7 @@ def term_input_from_assertion(
     The original term URI becomes the returned ``TermInput.term_id`` (the id-map
     key) unless ``term_id`` is given.
     """
-    subjects = {
-        s for s in assertion.subjects() if isinstance(s, rdflib.URIRef) and str(s).startswith(namespace)
-    }
+    subjects = {s for s in assertion.subjects() if isinstance(s, rdflib.URIRef) and str(s).startswith(namespace)}
     if len(subjects) != 1:
         raise ValueError(
             f"expected exactly one subject in namespace {namespace!r}, found {len(subjects)}: {sorted(map(str, subjects))}"
@@ -221,8 +219,6 @@ class SequentialMinter:
                 continue
             minted = self.mint(term, dry_run=dry_run)
             if output_dir is not None:
-                (output_dir / f"{term.term_id}.trig").write_text(
-                    serialize_nanopub(minted.nanopub), encoding="utf-8"
-                )
+                (output_dir / f"{term.term_id}.trig").write_text(serialize_nanopub(minted.nanopub), encoding="utf-8")
             batch.terms.append(minted)
         return batch

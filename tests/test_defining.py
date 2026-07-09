@@ -139,6 +139,7 @@ def test_blank_nodes_get_short_deterministic_labels():
 def test_blank_node_relabel_is_isomorphic_and_stable():
     """Differently-labeled isomorphic graphs relabel to the same b1 graph."""
     from pubmate._nanopub_build import relabel_blank_nodes
+
     schema = rdflib.Namespace("http://schema.org/")
     subj = rdflib.URIRef(NAMESPACE + "x")
 

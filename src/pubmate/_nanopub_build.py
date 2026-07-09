@@ -35,10 +35,7 @@ def _bnode_sort_key(graph: rdflib.Graph, bnode: rdflib.BNode) -> tuple:
     the source's random bnode ids. Bnodes with identical content sort equal —
     which is fine, since swapping their labels yields an isomorphic graph.
     """
-    items = [
-        (str(p), "" if isinstance(o, rdflib.BNode) else str(o))
-        for p, o in graph.predicate_objects(bnode)
-    ]
+    items = [(str(p), "" if isinstance(o, rdflib.BNode) else str(o)) for p, o in graph.predicate_objects(bnode)]
     return tuple(sorted(items))
 
 

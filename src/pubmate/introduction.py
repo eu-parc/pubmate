@@ -99,9 +99,7 @@ def build_introduction(
 
     # The agent signs its own introduction: the signing identity *is* the agent
     # URI (placeholder form), so npx:signedBy resolves to it after signing.
-    profile = nanopub.Profile(
-        orcid_id=str(agent), name=bot_name, private_key=private_key, public_key=public_key
-    )
+    profile = nanopub.Profile(orcid_id=str(agent), name=bot_name, private_key=private_key, public_key=public_key)
     conf = nanopub.NanopubConf(
         profile=profile,
         use_test_server=test_server,

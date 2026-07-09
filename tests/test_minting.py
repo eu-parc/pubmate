@@ -91,6 +91,7 @@ def test_mint_all_writes_trig_files(tmp_path):
 
 def test_term_input_prefers_untagged_label_over_localized():
     from pubmate.minting import term_input_from_assertion
+
     g = rdflib.Graph()
     s = rdflib.URIRef(NAMESPACE + "lead")
     g.add((s, RDF.type, RDFS.Class))
@@ -102,6 +103,7 @@ def test_term_input_prefers_untagged_label_over_localized():
 
 def test_term_input_adds_part_of_link():
     from pubmate.minting import term_input_from_assertion
+
     DCTERMS = rdflib.Namespace("http://purl.org/dc/terms/")
     thing = rdflib.URIRef(NAMESPACE + "X")
     vocab = "https://w3id.org/spaces/biochementity/r/vocabulary"
@@ -117,6 +119,7 @@ def test_term_input_adds_part_of_link():
 
 def test_preferred_label_falls_back_english_then_any():
     from pubmate._nanopub_build import preferred_label
+
     s = rdflib.URIRef(NAMESPACE + "x")
     # only localized + english -> english wins over nl-be
     g = rdflib.Graph()

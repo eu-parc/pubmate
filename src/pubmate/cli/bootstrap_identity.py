@@ -38,14 +38,24 @@ def _code(np_uri: str) -> str:
 
 
 @click.command()
-@click.option("--bot-name", required=True, help="foaf:name for the agent, e.g. \"Biochementity bot\".")
+@click.option("--bot-name", required=True, help='foaf:name for the agent, e.g. "Biochementity bot".')
 @click.option("--owner-orcid", required=True, help="ORCID URI of the human owner (frbr:owner + attribution).")
-@click.option("--bot-id", default="bot", show_default=True, help="Local URI segment for the agent (…/RA<code>/<bot-id>).")
+@click.option(
+    "--bot-id", default="bot", show_default=True, help="Local URI segment for the agent (…/RA<code>/<bot-id>)."
+)
 @click.option("--owner-name", help="Optional foaf:name for the owner ORCID.")
 @click.option("--output-dir", required=True, type=click.Path(file_okay=False, path_type=pathlib.Path))
-@click.option("--generate-keys", is_flag=True, help="Generate a fresh RSA keypair into --output-dir (id_rsa / id_rsa.pub).")
-@click.option("--private-key", type=click.Path(exists=True, dir_okay=False), help="Existing private key (instead of --generate-keys).")
-@click.option("--public-key", type=click.Path(exists=True, dir_okay=False), help="Existing public key (with --private-key).")
+@click.option(
+    "--generate-keys", is_flag=True, help="Generate a fresh RSA keypair into --output-dir (id_rsa / id_rsa.pub)."
+)
+@click.option(
+    "--private-key",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Existing private key (instead of --generate-keys).",
+)
+@click.option(
+    "--public-key", type=click.Path(exists=True, dir_okay=False), help="Existing public key (with --private-key)."
+)
 @click.option("--license", "license_", default=None, help="Override pubinfo license URI (default CC BY 4.0).")
 @click.option("--test-server", is_flag=True, help="Mark the introduction for the nanopub test server.")
 @click.option("--publish", is_flag=True, help="Publish the signed introduction to the network (default: sign only).")
@@ -87,9 +97,14 @@ def cli(
 
     kwargs = {} if license_ is None else {"license": license_}
     np = build_introduction(
-        private_key=priv, public_key=pub, bot_name=bot_name,
-        owner_orcid=owner_orcid, bot_local_name=bot_id, owner_name=owner_name,
-        test_server=test_server, **kwargs,
+        private_key=priv,
+        public_key=pub,
+        bot_name=bot_name,
+        owner_orcid=owner_orcid,
+        bot_local_name=bot_id,
+        owner_name=owner_name,
+        test_server=test_server,
+        **kwargs,
     )
     np.sign()
     agent_uri = f"{np.metadata.np_uri}/{bot_id}"

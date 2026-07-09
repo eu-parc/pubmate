@@ -118,7 +118,8 @@ def publish_incremental(
         if entry.old_id != term.term_id:
             logger.info(
                 "Resolved submitted id %s to existing term %s via its thing URI.",
-                term.term_id, entry.old_id,
+                term.term_id,
+                entry.old_id,
             )
 
         if entry.fingerprint == "":

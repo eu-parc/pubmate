@@ -87,8 +87,19 @@ def test_mint_publish_adds_part_of_type_and_template(tmp_path) -> None:
 
     result = CliRunner().invoke(
         cli,
-        ["-a", str(assertions), "--output-dir", str(out), "--dry-run",
-         "--part-of", vocab, "--nanopub-type", type_uri, "--template", template_uri],
+        [
+            "-a",
+            str(assertions),
+            "--output-dir",
+            str(out),
+            "--dry-run",
+            "--part-of",
+            vocab,
+            "--nanopub-type",
+            type_uri,
+            "--template",
+            template_uri,
+        ],
     )
     assert result.exit_code == 0, result.output
     np = rdflib.Dataset()
@@ -105,9 +116,7 @@ def test_mint_publish_without_keys_requires_dry_run(tmp_path) -> None:
     assertions.mkdir()
     _assertion_graph(assertions / "caffeine.ttl")
 
-    result = CliRunner().invoke(
-        cli, ["-a", str(assertions), "--output-dir", str(tmp_path / "published")]
-    )
+    result = CliRunner().invoke(cli, ["-a", str(assertions), "--output-dir", str(tmp_path / "published")])
 
     assert result.exit_code != 0
     assert "signing keys" in result.output.lower()
@@ -120,9 +129,11 @@ def test_mint_publish_skips_already_minted(tmp_path) -> None:
     out = tmp_path / "published"
     idmap = tmp_path / "id-map.tsv"
     # Pre-seed the id-map so the term is treated as already minted.
-    seed = IdMap.from_tsv("\t".join(("old_id", "thing_uri", "np_uri")) + "\n" + "\t".join(
-        (OLD_ID, f"{NAMESPACE}RAseed", "https://w3id.org/np/RAseed")
-    ))
+    seed = IdMap.from_tsv(
+        "\t".join(("old_id", "thing_uri", "np_uri"))
+        + "\n"
+        + "\t".join((OLD_ID, f"{NAMESPACE}RAseed", "https://w3id.org/np/RAseed"))
+    )
     seed.write_tsv(idmap)
 
     result = CliRunner().invoke(
