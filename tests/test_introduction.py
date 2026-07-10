@@ -16,8 +16,12 @@ def _keys():
 def _build(**over):
     priv, pub = _keys()
     kwargs = dict(
-        private_key=priv, public_key=pub, bot_name="Biochementity bot",
-        owner_orcid=OWNER, bot_local_name="biochementity-bot", owner_name="Tobias Kuhn",
+        private_key=priv,
+        public_key=pub,
+        bot_name="Biochementity bot",
+        owner_orcid=OWNER,
+        bot_local_name="biochementity-bot",
+        owner_name="Tobias Kuhn",
     )
     kwargs.update(over)
     return build_introduction(**kwargs)

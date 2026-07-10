@@ -44,11 +44,13 @@ def _no_old_id_objects(graph, old_uris):
 
 
 def test_acyclic_chain_resolves_all_inline():
-    assertions = _batch({
-        "a": {"metabolite_of": ["b"]},
-        "b": {"metabolite_of": ["c"]},
-        "c": {},
-    })
+    assertions = _batch(
+        {
+            "a": {"metabolite_of": ["b"]},
+            "b": {"metabolite_of": ["c"]},
+            "c": {},
+        }
+    )
     minter, sup = _minter_and_supersession()
     result = migrate_terms(assertions, namespace=NS, minter=minter, supersession_builder=sup, dry_run=True)
 
@@ -68,10 +70,12 @@ def test_acyclic_chain_resolves_all_inline():
 
 
 def test_two_cycle_defers_one_and_supersedes():
-    assertions = _batch({
-        "a": {"isomer_of": ["b"]},
-        "b": {"isomer_of": ["a"]},
-    })
+    assertions = _batch(
+        {
+            "a": {"isomer_of": ["b"]},
+            "b": {"isomer_of": ["a"]},
+        }
+    )
     minter, sup = _minter_and_supersession()
     result = migrate_terms(assertions, namespace=NS, minter=minter, supersession_builder=sup, dry_run=True)
 
@@ -105,8 +109,12 @@ def test_rerun_with_existing_idmap_mints_nothing():
 
     minter2, sup2 = _minter_and_supersession()
     second = migrate_terms(
-        assertions, namespace=NS, minter=minter2, supersession_builder=sup2,
-        existing=first.id_map, dry_run=True,
+        assertions,
+        namespace=NS,
+        minter=minter2,
+        supersession_builder=sup2,
+        existing=first.id_map,
+        dry_run=True,
     )
     assert second.defining.terms == []
     assert second.superseding == []
@@ -120,8 +128,12 @@ def test_part_of_link_on_defining_and_superseding():
     assertions = _batch({"a": {"isomer_of": ["b"]}, "b": {"isomer_of": ["a"]}})  # cycle -> 1 supersession
     minter, sup = _minter_and_supersession()
     result = migrate_terms(
-        assertions, namespace=NS, minter=minter, supersession_builder=sup,
-        dry_run=True, part_of=str(vocab),
+        assertions,
+        namespace=NS,
+        minter=minter,
+        supersession_builder=sup,
+        dry_run=True,
+        part_of=str(vocab),
     )
     new = result.id_map.thing_uri_map
     # every defining nanopub links its term to the vocabulary
@@ -149,7 +161,12 @@ def test_migration_records_source_fingerprints():
     assertions = _batch({"a": {"metabolite_of": ["b"]}, "b": {}})
     minter, sup = _minter_and_supersession()
     result = migrate_terms(
-        assertions, namespace=NS, minter=minter, supersession_builder=sup, dry_run=True, part_of=VOCAB,
+        assertions,
+        namespace=NS,
+        minter=minter,
+        supersession_builder=sup,
+        dry_run=True,
+        part_of=VOCAB,
     )
     fps = result.id_map.fingerprint_map
     assert all(fps.values())  # every migrated term carries a fingerprint
@@ -164,13 +181,21 @@ def test_incremental_over_migrated_sources_skips_unchanged():
     assertions = _batch({"a": {"metabolite_of": ["b"]}, "b": {}})
     minter, sup = _wrapped_minter(TPL_OLD)
     migrated = migrate_terms(
-        assertions, namespace=NS, minter=minter, supersession_builder=sup, dry_run=True, part_of=VOCAB,
+        assertions,
+        namespace=NS,
+        minter=minter,
+        supersession_builder=sup,
+        dry_run=True,
+        part_of=VOCAB,
     )
     # Re-run the incremental publisher over the SAME sources with the SAME wrapper.
     minter2, sup2 = _wrapped_minter(TPL_OLD)
     result = publish_incremental(
-        _terms_for(assertions, minter2.builder), minter=minter2, supersession_builder=sup2,
-        existing=migrated.id_map, dry_run=True,
+        _terms_for(assertions, minter2.builder),
+        minter=minter2,
+        supersession_builder=sup2,
+        existing=migrated.id_map,
+        dry_run=True,
     )
     assert result.minted.terms == []
     assert result.superseded == []
@@ -181,13 +206,21 @@ def test_incremental_supersedes_migrated_terms_on_template_change():
     assertions = _batch({"a": {"metabolite_of": ["b"]}, "b": {}})
     minter, sup = _wrapped_minter(TPL_OLD)
     migrated = migrate_terms(
-        assertions, namespace=NS, minter=minter, supersession_builder=sup, dry_run=True, part_of=VOCAB,
+        assertions,
+        namespace=NS,
+        minter=minter,
+        supersession_builder=sup,
+        dry_run=True,
+        part_of=VOCAB,
     )
     # Change only the template; every migrated term must be superseded, keeping its thing URI.
     minter2, sup2 = _wrapped_minter(TPL_NEW)
     result = publish_incremental(
-        _terms_for(assertions, minter2.builder), minter=minter2, supersession_builder=sup2,
-        existing=migrated.id_map, dry_run=True,
+        _terms_for(assertions, minter2.builder),
+        minter=minter2,
+        supersession_builder=sup2,
+        existing=migrated.id_map,
+        dry_run=True,
     )
     assert result.minted.terms == []
     assert {s.term_id for s in result.superseded} == set(assertions)
@@ -202,7 +235,11 @@ def test_default_suggester_attributes_defining_and_superseding():
     builder = DefiningNanopubBuilder(NS)
     minter = SequentialMinter(builder, default_suggester_orcid=str(GERTJAN))
     result = migrate_terms(
-        assertions, namespace=NS, minter=minter, supersession_builder=SupersessionBuilder(), dry_run=True,
+        assertions,
+        namespace=NS,
+        minter=minter,
+        supersession_builder=SupersessionBuilder(),
+        dry_run=True,
     )
     # every defining nanopub's assertion is attributed to the default suggester (in provenance)
     for t in result.defining.terms:

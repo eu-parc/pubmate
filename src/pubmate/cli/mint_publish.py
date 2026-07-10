@@ -17,21 +17,42 @@ logger = logging.getLogger(__name__)
 
 
 @click.command()
-@click.option("--assertion-folder", "-a", required=True, type=click.Path(exists=True, file_okay=False, path_type=pathlib.Path))
+@click.option(
+    "--assertion-folder", "-a", required=True, type=click.Path(exists=True, file_okay=False, path_type=pathlib.Path)
+)
 @click.option("--namespace", default="https://w3id.org/peh/biochementities/", show_default=True)
-@click.option("--output-dir", required=True, type=click.Path(file_okay=False, path_type=pathlib.Path), help="Where to write the minted .trig nanopubs.")
-@click.option("--id-map-file", type=click.Path(dir_okay=False, path_type=pathlib.Path), help="TSV id-map to write/merge (old_id -> thing_uri, np_uri).")
+@click.option(
+    "--output-dir",
+    required=True,
+    type=click.Path(file_okay=False, path_type=pathlib.Path),
+    help="Where to write the minted .trig nanopubs.",
+)
+@click.option(
+    "--id-map-file",
+    type=click.Path(dir_okay=False, path_type=pathlib.Path),
+    help="TSV id-map to write/merge (old_id -> thing_uri, np_uri).",
+)
 @click.option("--default-suggester", help="Fallback suggester ORCID for terms without their own.")
 @click.option("--part-of", help="URI each term links to via dcterms:isPartOf in its assertion (e.g. the vocabulary).")
-@click.option("--nanopub-type", "nanopub_types", multiple=True, help="URI tagged in pubinfo as npx:hasNanopubType on every nanopub (repeatable).")
-@click.option("--template", help="Assertion-template URI tagged in pubinfo as nt:wasCreatedFromTemplate on every nanopub (for Nanodash rendering).")
+@click.option(
+    "--nanopub-type",
+    "nanopub_types",
+    multiple=True,
+    help="URI tagged in pubinfo as npx:hasNanopubType on every nanopub (repeatable).",
+)
+@click.option(
+    "--template",
+    help="Assertion-template URI tagged in pubinfo as nt:wasCreatedFromTemplate on every nanopub (for Nanodash rendering).",
+)
 @click.option("--orcid-id")
 @click.option("--name")
 @click.option("--private-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--public-key", type=click.Path(exists=True, dir_okay=False))
 @click.option("--intro-nanopub-uri")
 @click.option("--test-server", is_flag=True, help="Publish to the nanopub test server (with --private-key).")
-@click.option("--use-testsuite-keys", is_flag=True, help="Sign with nanopub-testsuite-connector key material (test server).")
+@click.option(
+    "--use-testsuite-keys", is_flag=True, help="Sign with nanopub-testsuite-connector key material (test server)."
+)
 @click.option("--testsuite-key", default="rsa-key1", show_default=True, hidden=True)
 @click.option("--testsuite-ref", default="main", show_default=True, hidden=True)
 @click.option("--dry-run", is_flag=True, help="Sign only (offline); do not publish to the network.")
@@ -85,12 +106,18 @@ def cli(
         dry_run=dry_run,
     )
     builder = DefiningNanopubBuilder(
-        namespace, profile=signing.profile, test_server=signing.test_server,
-        nanopub_types=nanopub_types, template=template,
+        namespace,
+        profile=signing.profile,
+        test_server=signing.test_server,
+        nanopub_types=nanopub_types,
+        template=template,
     )
     supersession_builder = SupersessionBuilder(
-        profile=signing.profile, test_server=signing.test_server,
-        license=builder.license, nanopub_types=nanopub_types, template=template,
+        profile=signing.profile,
+        test_server=signing.test_server,
+        license=builder.license,
+        nanopub_types=nanopub_types,
+        template=template,
     )
 
     files = sorted(assertion_folder.glob(pattern))
@@ -112,7 +139,9 @@ def cli(
             )
         )
 
-    existing = IdMap.from_tsv(id_map_file.read_text(encoding="utf-8")) if id_map_file and id_map_file.exists() else IdMap()
+    existing = (
+        IdMap.from_tsv(id_map_file.read_text(encoding="utf-8")) if id_map_file and id_map_file.exists() else IdMap()
+    )
 
     minter = SequentialMinter(builder, default_suggester_orcid=default_suggester)
     result = publish_incremental(
@@ -139,8 +168,11 @@ def cli(
 
     logger.info(
         "Minted %d, superseded %d, skipped %d term(s)%s -> %s",
-        len(result.minted.terms), len(result.superseded), len(result.skipped),
-        " (dry-run)" if dry_run else "", output_dir,
+        len(result.minted.terms),
+        len(result.superseded),
+        len(result.skipped),
+        " (dry-run)" if dry_run else "",
+        output_dir,
     )
 
 
