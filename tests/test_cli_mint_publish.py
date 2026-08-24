@@ -73,6 +73,35 @@ def test_mint_publish_dry_run_writes_trig_and_idmap(tmp_path) -> None:
     assert entry.np_uri.startswith("https://w3id.org/np/RA")
 
 
+def test_mint_publish_keeps_existing_trusty_subject_without_idmap(tmp_path) -> None:
+    trusty_id = f"{NAMESPACE}RA" + ("a" * 41)
+    assertions = tmp_path / "assertions"
+    assertions.mkdir()
+    g = rdflib.Graph()
+    s = rdflib.URIRef(trusty_id)
+    g.add((s, RDF.type, SKOS.Concept))
+    g.add((s, RDFS.label, rdflib.Literal("Caffeine")))
+    g.serialize(destination=assertions / "caffeine.ttl", format="turtle")
+    out = tmp_path / "published"
+    idmap = tmp_path / "id-map.tsv"
+
+    result = CliRunner().invoke(
+        cli,
+        ["-a", str(assertions), "--output-dir", str(out), "--id-map-file", str(idmap), "--dry-run"],
+    )
+
+    assert result.exit_code == 0, result.output
+    parsed = IdMap.from_tsv(idmap.read_text(encoding="utf-8"))
+    entry = parsed[trusty_id]
+    assert entry.thing_uri == trusty_id
+    assert entry.np_uri.startswith("https://w3id.org/np/RA")
+
+    np = rdflib.Dataset()
+    np.parse(next(out.glob("*.trig")), format="trig")
+    subjects = {str(s) for s, _p, _o, _g in np.quads((None, None, None, None))}
+    assert trusty_id in subjects
+
+
 def test_mint_publish_adds_part_of_type_and_template(tmp_path) -> None:
     DCTERMS = rdflib.Namespace("http://purl.org/dc/terms/")
     NPX = rdflib.Namespace("http://purl.org/nanopub/x/")

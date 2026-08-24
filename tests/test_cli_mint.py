@@ -65,3 +65,57 @@ def test_mint_cli_keeps_valid_uri_that_does_not_match_selected_method(tmp_path) 
 
     rendered = yaml.safe_load(result.stdout)
     assert rendered["vocabulary_terms"][0]["id"] == existing_id
+
+
+def test_mint_cli_keeps_trusty_id_when_method_is_trusty(tmp_path) -> None:
+    data_path = tmp_path / "terms.yaml"
+    existing_id = "https://example.org/terms/RA" + ("a" * 41)
+    data_path.write_text(
+        ("vocabulary_terms:\n" "  - name: Alpha\n" f"    id: {existing_id}\n"),
+        encoding="utf-8",
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--data",
+            str(data_path),
+            "--target",
+            "vocabulary_terms",
+            "--namespace",
+            "https://example.org/terms/",
+            "--method",
+            "trusty",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+
+    rendered = yaml.safe_load(result.stdout)
+    assert rendered["vocabulary_terms"][0]["id"] == existing_id
+
+
+def test_mint_cli_cannot_generate_missing_trusty_id(tmp_path, caplog) -> None:
+    data_path = tmp_path / "terms.yaml"
+    data_path.write_text("vocabulary_terms:\n  - name: Alpha\n", encoding="utf-8")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "--data",
+            str(data_path),
+            "--target",
+            "vocabulary_terms",
+            "--namespace",
+            "https://example.org/terms/",
+            "--method",
+            "trusty",
+            "--dry-run",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "Cannot generate a trusty artifact-code identifier" in caplog.text

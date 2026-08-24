@@ -153,6 +153,11 @@ def _artifact_code(np_uri: str) -> str:
     return match.group(0)
 
 
+def is_trusty_thing_uri(uri: str, *, namespace: str) -> bool:
+    """Return whether ``uri`` is a namespace-local trusty artifact-code identifier."""
+    return bool(re.match(f"^{re.escape(namespace)}{_ARTIFACT_CODE_RE.pattern}$", uri))
+
+
 class SequentialMinter:
     """Mint defining nanopubs one by one with a configured builder.
 

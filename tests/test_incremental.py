@@ -62,6 +62,37 @@ def test_new_term_is_minted_and_records_fingerprint():
     assert entry.fingerprint != ""
 
 
+def test_new_trusty_term_is_published_without_reminting_thing_uri():
+    thing = f"{NAMESPACE}RA" + ("a" * 41)
+
+    result = _run([_term(thing, "Alpha")])
+
+    assert result.superseded == []
+    assert [m.term_id for m in result.minted.terms] == [thing]
+    minted = result.minted.terms[0]
+    assert minted.thing_uri == thing
+    assert minted.np_uri.startswith("https://w3id.org/np/RA")
+    assert rdflib.URIRef(thing) in set(minted.nanopub.assertion.subjects())
+    assert rdflib.URIRef(f"{NAMESPACE}RA") not in set(minted.nanopub.assertion.subjects())
+
+    entry = result.id_map[thing]
+    assert entry.thing_uri == thing
+    assert entry.np_uri == minted.np_uri
+    assert entry.fingerprint != ""
+
+
+def test_new_trusty_term_rerun_is_skipped():
+    thing = f"{NAMESPACE}RA" + ("a" * 41)
+    first = _run([_term(thing, "Alpha")])
+
+    again = _run([_term(thing, "Alpha")], existing=first.id_map)
+
+    assert again.minted.terms == []
+    assert again.superseded == []
+    assert again.skipped == [thing]
+    assert again.id_map[thing] == first.id_map[thing]
+
+
 def test_unchanged_term_is_skipped():
     first = _run([_term("alpha", "Alpha")])
     again = _run([_term("alpha", "Alpha")], existing=first.id_map)
