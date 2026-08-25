@@ -4,6 +4,7 @@ import logging
 import yaml
 
 from pubmate import IdentifierGenerator
+from pubmate.mint import ID_METHODS
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 @click.option("--target", "-t", "target_name", required=True, help="Name of the target entity list in the data file.")
 @click.option("--namespace", required=True, help="Namespace prefix used to create identifiers.")
 @click.option("--id-key", default="id", help="Field name containing the identifier.")
-@click.option("--method", default="ulid", type=click.Choice(["ulid", "uuid", "hash"]), help="ID generation method.")
+@click.option("--method", default="ulid", type=click.Choice(ID_METHODS), help="ID generation/checking method.")
 @click.option(
     "--output", "output_path", default=None, help="Optional output path. Defaults to overwriting the input file."
 )
@@ -69,10 +70,11 @@ def cli(
             if not label_value:
                 raise ValueError(f"Entity at index {i} has no '{preflabel}' value: {entity}")
 
-            # Keep existing valid URIs unless forced. They may have been minted with
+            # Keep existing IDs that match the selected minting pattern. Keep
+            # other valid URIs too, unless forced: they may have been minted with
             # another strategy, another namespace, or outside PubMate entirely.
             if current_id and not force:
-                if id_generator.is_valid_uri(current_id):
+                if id_generator.is_valid_id(current_id, method=method) or id_generator.is_valid_uri(current_id):
                     id_generator.register_id(current_id)
                     logger.debug(f"Keeping existing ID: {current_id}")
                     continue

@@ -1,8 +1,8 @@
+import json
 import hashlib
 import logging
 import os
 import re
-import json
 
 from typing import Optional, Set
 from urllib.parse import urlsplit
@@ -12,6 +12,16 @@ from uuid import uuid4
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+ID_METHODS = ("ulid", "uuid", "hash", "trusty")
+GENERATIVE_ID_METHODS = ("ulid", "uuid", "hash")
+_UNIQUE_PART_PATTERNS = {
+    "uuid": r"[0-9a-f]{8}",
+    "hash": r"[0-9a-f]{10}",
+    "ulid": r"[0-9A-HJKMNP-TV-Z]{26}",
+    # Trusty artifact code, e.g. "RA" followed by a base64url-ish hash.
+    "trusty": r"RA[A-Za-z0-9_\-]{40,}",
+}
 
 
 class IdentifierGenerator:
@@ -49,38 +59,24 @@ class IdentifierGenerator:
 
         return True
 
+    def id_pattern(self, method: str = "ulid") -> re.Pattern:
+        """Return the full identifier regex for ``method`` in this namespace."""
+        try:
+            unique_pattern = _UNIQUE_PART_PATTERNS[method]
+        except KeyError:
+            raise NotImplementedError(f"Unknown method: {method}. Available methods: {', '.join(ID_METHODS)}") from None
+
+        if self.type_prefix is None:
+            suffix_pattern = unique_pattern
+        else:
+            suffix_pattern = f"{re.escape(self.type_prefix)}-{unique_pattern}"
+
+        return re.compile(f"^{re.escape(self.namespace)}{suffix_pattern}$")
+
     def is_valid_id(self, key: str, method: str = "ulid") -> bool:
-        # Check if key starts with namespace
-        if not key.startswith(self.namespace):
+        if not isinstance(key, str):
             return False
-
-        # Remove namespace to get the remaining part
-        remaining = key[len(self.namespace) :]
-
-        # Define expected unique part patterns based on method
-        if method == "uuid":
-            unique_pattern = r"^[0-9a-f]{8}$"  # 8 hex chars
-        elif method == "hash":
-            unique_pattern = r"^[0-9a-f]{10}$"  # 10 hex chars
-        elif method == "ulid":
-            unique_pattern = r"^[0-9A-HJKMNP-TV-Z]{26}$"  # full ULID
-        else:
-            raise NotImplementedError
-
-        # Check pattern based on whether type_prefix is used
-        if self.type_prefix is not None:
-            # Expected format: {type_prefix}-{unique_part}
-            expected_prefix = f"{self.type_prefix}-"
-            if not remaining.startswith(expected_prefix):
-                return False
-            # Extract unique part after type_prefix and dash
-            unique_part = remaining[len(expected_prefix) :]
-        else:
-            # Expected format: {unique_part} directly
-            unique_part = remaining
-
-        # Validate the unique part matches the expected pattern
-        return bool(re.match(unique_pattern, unique_part))
+        return bool(self.id_pattern(method).match(key))
 
     def register_id(self, identifier: str) -> None:
         self.registered_ids.add(identifier)
@@ -134,8 +130,13 @@ class IdentifierGenerator:
                 hash_str = self.hash_dict(salted_entity)
                 unique_part = hash_str[:10]
 
+            elif method == "trusty":
+                raise ValueError(
+                    "Cannot generate a trusty artifact-code identifier in pubmate-mint; "
+                    "publish/sign a nanopublication instead."
+                )
             else:
-                raise ValueError(f"Unknown method: {method}. Available methods: ulid, uuid, hash")
+                raise ValueError(f"Unknown method: {method}. Available methods: {', '.join(GENERATIVE_ID_METHODS)}")
 
             # Construct the full identifier
             if self.type_prefix is None:

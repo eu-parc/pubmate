@@ -47,11 +47,11 @@ from typing import List, Optional, Sequence
 
 import rdflib
 
-from pubmate._nanopub_build import preferred_label
+from pubmate._nanopub_build import UNSET as _UNSET, preferred_label
 from pubmate.fingerprint import fingerprint_term
 from pubmate.idmap import IdMap, IdMapEntry
 from pubmate.migrate import MintedSupersession
-from pubmate.minting import MintBatch, SequentialMinter, TermInput
+from pubmate.minting import MintBatch, MintedTerm, SequentialMinter, TermInput, is_trusty_thing_uri
 from pubmate.rdf2nanopub import sign_and_publish
 from pubmate.references import resolve_references
 from pubmate.supersede import SupersessionBuilder
@@ -99,12 +99,47 @@ def publish_incremental(
     default_suggester = minter.default_suggester_orcid
 
     for term in terms:
-        current_fp = fingerprint_term(term, minter.builder, default_suggester=default_suggester)
-
         entry = result.id_map.resolve(term.term_id)
+        already_trusty = is_trusty_thing_uri(term.term_id, namespace=minter.builder.namespace)
+        fingerprint_introduces = (
+            term.term_id
+            if (entry is None and already_trusty)
+            or (
+                entry is not None
+                and entry.old_id == entry.thing_uri
+                and is_trusty_thing_uri(entry.thing_uri, namespace=minter.builder.namespace)
+            )
+            else _UNSET
+        )
+        current_fp = fingerprint_term(
+            term,
+            minter.builder,
+            default_suggester=default_suggester,
+            introduces=fingerprint_introduces,
+        )
 
         if entry is None:
-            minted = minter.mint(term, dry_run=dry_run)
+            if already_trusty:
+                fixed = rdflib.URIRef(term.term_id)
+                full = resolve_references(
+                    term.assertion,
+                    namespace=minter.builder.namespace,
+                    subject=placeholder,
+                    new_subject=fixed,
+                    thing_uris=result.id_map.resolution_map,
+                )
+                np = minter.builder.build(
+                    full,
+                    suggester_orcid=term.suggester_orcid or default_suggester,
+                    label=term.label or preferred_label(full, fixed),
+                    derived_from=term.derived_from,
+                    introduces=term.term_id,
+                )
+                np_uri = sign_and_publish(np, dry_run=dry_run)
+                minted = MintedTerm(term_id=term.term_id, thing_uri=term.term_id, np_uri=np_uri, nanopub=np)
+                logger.info("Published already-minted term %s -> %s", term.term_id, np_uri)
+            else:
+                minted = minter.mint(term, dry_run=dry_run)
             result.id_map.add(
                 IdMapEntry(term.term_id, minted.thing_uri, minted.np_uri, current_fp),
                 overwrite=True,
