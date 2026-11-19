@@ -1,13 +1,16 @@
 import rdflib
 from rdflib import Literal
-from rdflib.namespace import RDF, RDFS
+from rdflib.namespace import PROV, RDF, RDFS
 
 from nanopub.namespaces import NPX
+from pubmate._nanopub_build import ephemeral_profile
+from pubmate.current import StaticDefinitions, definition_from_trig
 from pubmate.defining import DefiningNanopubBuilder
 from pubmate.idmap import IdMap, IdMapEntry
 from pubmate.incremental import publish_incremental
 from pubmate.minting import SequentialMinter, TermInput
 from pubmate.supersede import SupersessionBuilder
+from pubmate.utils import serialize_nanopub
 
 NAMESPACE = "https://example.org/terms/"
 TPL_OLD = "https://w3id.org/np/RAtemplateOld"
@@ -115,6 +118,9 @@ def test_drifted_term_is_superseded_keeping_thing_uri():
     # The new nanopub supersedes the recorded one...
     assert sup.supersedes_np_uri == before.np_uri
     assert (None, NPX.supersedes, rdflib.URIRef(before.np_uri)) in sup.nanopub.pubinfo
+    # ...introduces the term, so the vocabulary queries keep listing it (#17)...
+    assert (None, NPX.introduces, rdflib.URIRef(before.thing_uri)) in sup.nanopub.pubinfo
+    assert sup.kind == "supersede"
     # ...and is written against the term's fixed, unchanged thing URI.
     assert rdflib.URIRef(before.thing_uri) in set(sup.nanopub.assertion.subjects())
 
@@ -229,3 +235,155 @@ def test_mixed_batch_mints_skips_and_supersedes():
     assert [s.term_id for s in result.superseded] == ["edit"]
     assert result.skipped == ["keep"]
     assert set(result.id_map.fingerprint_map) == {"keep", "edit", "new"}
+
+
+# -- with current definitions from the network --------------------------------
+
+
+def _current(*nanopubs_by_thing):
+    """StaticDefinitions from (thing_uri, np_uri, nanopub) triples, read back from TriG."""
+    return StaticDefinitions(
+        {
+            thing: definition_from_trig(serialize_nanopub(np), thing_uri=thing, np_uri=np_uri)
+            for thing, np_uri, np in nanopubs_by_thing
+        }
+    )
+
+
+def _published(term_id="alpha", label="Alpha", minter=None):
+    """Mint a term (dry run) as it would be on the network; return (row, current)."""
+    result = publish_incremental(
+        [_term(term_id, label)],
+        minter=minter or _minter(),
+        supersession_builder=_sup(),
+        existing=IdMap(),
+        dry_run=True,
+    )
+    minted = result.minted.terms[0]
+    return result.id_map[term_id], _current((minted.thing_uri, minted.np_uri, minted.nanopub))
+
+
+def _run_current(terms, existing, current, minter=None, sup=None):
+    return publish_incremental(
+        terms,
+        minter=minter or _minter(),
+        supersession_builder=sup or _sup(),
+        existing=existing,
+        dry_run=True,
+        current=current,
+    )
+
+
+def test_row_without_fingerprint_unchanged_is_skipped_and_baseline_verified():
+    row, current = _published()
+    legacy = IdMap([IdMapEntry(row.old_id, row.thing_uri, row.np_uri, "")])
+
+    result = _run_current([_term("alpha", "Alpha")], legacy, current)
+
+    assert result.minted.terms == [] and result.superseded == []
+    assert result.skipped == ["alpha"]
+    assert result.id_map["alpha"].fingerprint == row.fingerprint
+
+
+def test_row_without_fingerprint_changed_is_updated_not_dropped():
+    # #54, first gap: a changed submission for a row without fingerprint used to
+    # be recorded as published without being published.
+    row, current = _published()
+    legacy = IdMap([IdMapEntry(row.old_id, row.thing_uri, row.np_uri, "")])
+
+    result = _run_current([_term("alpha", "Alpha (edited)")], legacy, current)
+
+    assert [s.term_id for s in result.superseded] == ["alpha"]
+    sup = result.superseded[0].nanopub
+    assert (None, RDFS.label, Literal("Alpha (edited)")) in sup.assertion
+    assert (None, NPX.introduces, rdflib.URIRef(row.thing_uri)) in sup.pubinfo
+    assert result.id_map["alpha"].np_uri == result.superseded[0].np_uri
+
+
+def test_update_overrides_current_definition_signed_with_another_key():
+    row, current = _published()
+    # The id-map is stale: the network has a newer definition (here: the same one,
+    # under its real URI) than the row records.
+    stale = IdMap([IdMapEntry(row.old_id, row.thing_uri, "https://w3id.org/np/RAstale", row.fingerprint)])
+
+    result = _run_current([_term("alpha", "Alpha (edited)")], stale, current)
+
+    (sup,) = result.superseded
+    assert sup.kind == "override"
+    assert sup.supersedes_np_uri == row.np_uri  # the current definition, not the stale row
+    assert (None, PROV.wasDerivedFrom, rdflib.URIRef(row.np_uri)) in sup.nanopub.pubinfo
+    assert (None, NPX.supersedes, None) not in sup.nanopub.pubinfo
+    assert (None, NPX.introduces, rdflib.URIRef(row.thing_uri)) in sup.nanopub.pubinfo
+
+
+def test_update_supersedes_current_definition_signed_with_the_same_key():
+    profile = ephemeral_profile()
+    minter = SequentialMinter(DefiningNanopubBuilder(NAMESPACE, profile=profile))
+    sup_builder = SupersessionBuilder(profile=profile)
+    row, current = _published(minter=minter)
+
+    result = _run_current([_term("alpha", "Alpha (edited)")], IdMap([row]), current, minter=minter, sup=sup_builder)
+
+    (sup,) = result.superseded
+    assert sup.kind == "supersede"
+    assert (None, NPX.supersedes, rdflib.URIRef(row.np_uri)) in sup.nanopub.pubinfo
+    assert (None, NPX.introduces, rdflib.URIRef(row.thing_uri)) in sup.nanopub.pubinfo
+
+
+def test_minted_uri_without_row_updates_its_current_definition():
+    # #54, second gap: a term submitted under its minted URI with no id-map row
+    # got a second, unlinked definition.
+    row, current = _published()
+
+    same = _run_current([_term(row.thing_uri, "Alpha")], IdMap(), current)
+    changed = _run_current([_term(row.thing_uri, "Alpha (edited)")], IdMap(), current)
+
+    assert same.minted.terms == [] and same.superseded == []
+    assert same.skipped == [row.thing_uri]
+    assert same.id_map[row.thing_uri].np_uri == row.np_uri
+    assert changed.minted.terms == []
+    (sup,) = changed.superseded
+    assert (None, PROV.wasDerivedFrom, rdflib.URIRef(row.np_uri)) in sup.nanopub.pubinfo
+
+
+def test_term_without_current_definition_is_republished():
+    # E.g. withdrawn in the meantime: re-submitting it publishes it again.
+    row, _ = _published()
+
+    result = _run_current([_term("alpha", "Alpha")], IdMap([row]), StaticDefinitions())
+
+    (sup,) = result.superseded
+    assert sup.kind == "override"
+    assert (None, PROV.wasDerivedFrom, rdflib.URIRef(row.np_uri)) in sup.nanopub.pubinfo
+    assert (None, NPX.introduces, rdflib.URIRef(row.thing_uri)) in sup.nanopub.pubinfo
+
+
+def test_blank_nodes_in_the_current_definition_compare_equal():
+    builder = DefiningNanopubBuilder(NAMESPACE)
+
+    def term():
+        alias = rdflib.BNode()
+        g = builder.make_assertion([(RDF.type, RDFS.Class), (RDFS.label, Literal("Alpha")), (REL, alias)])
+        g.add((alias, RDFS.label, Literal("a")))
+        return TermInput(term_id="alpha", assertion=g, label="Alpha")
+
+    first = publish_incremental([term()], minter=_minter(), supersession_builder=_sup(), existing=IdMap())
+    minted = first.minted.terms[0]
+    current = _current((minted.thing_uri, minted.np_uri, minted.nanopub))
+
+    result = _run_current([term()], first.id_map, current)
+
+    assert result.superseded == [] and result.skipped == ["alpha"]
+
+
+def test_update_warns_when_it_drops_a_property_entirely(caplog):
+    row, current = _published()
+    builder = DefiningNanopubBuilder(NAMESPACE)
+    # The resubmission has no rdf:type at all (e.g. a lossy export was edited).
+    only_label = builder.make_assertion([(RDFS.label, Literal("Alpha (edited)"))])
+
+    with caplog.at_level("WARNING", logger="pubmate.incremental"):
+        result = _run_current([TermInput(term_id="alpha", assertion=only_label)], IdMap([row]), current)
+
+    assert len(result.superseded) == 1
+    assert any("drops all of its" in r.message and str(RDF.type) in r.message for r in caplog.records)

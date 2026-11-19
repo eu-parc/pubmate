@@ -63,12 +63,18 @@ def _source_fingerprint(
 
 @dataclass
 class MintedSupersession:
-    """A superseding nanopub minted to add a term's held-back links."""
+    """A nanopub that updates a term's definition.
+
+    ``kind`` is ``"supersede"`` (``npx:supersedes`` the previous definition, same
+    key) or ``"override"`` (``prov:wasDerivedFrom`` it, another key);
+    ``supersedes_np_uri`` is the previous definition either way.
+    """
 
     term_id: str
     supersedes_np_uri: str
     np_uri: str
     nanopub: nanopub.Nanopub
+    kind: str = "supersede"
 
 
 @dataclass
@@ -195,6 +201,7 @@ def migrate_terms(
         )
         sup_np = supersession_builder.build(
             full,
+            introduces=minted.thing_uri,
             supersedes_np_uri=minted.np_uri,
             label=_label(full, new_subject),
             suggester_orcid=minter.default_suggester_orcid,

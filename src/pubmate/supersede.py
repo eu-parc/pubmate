@@ -1,18 +1,24 @@
-"""Supersession-nanopub builder.
+"""Builder for nanopubs that update a term's definition.
 
-Build a nanopublication that *supersedes* an earlier one, used to add links a
-term's defining nanopub deliberately left out — forward references to terms that
-were not minted yet, or cyclic references between terms.
+An update re-states a term against its already-minted, fixed URI (its trusty
+artifact-code URI), not the placeholder. When the nanopub is signed, only its
+*own* artifact code is computed; the fixed URIs of this and other terms are
+preserved.
 
-The superseded term keeps its identity: the assertion here is written against
-the term's already-minted, fixed URI (its trusty artifact-code URI), not the
-placeholder. When this nanopub is signed, only its *own* artifact code is
-computed; the fixed URIs of this and other terms are preserved.
+Every update carries ``npx:introduces`` for the term: the vocabulary queries only
+count nanopubs that introduce the class, so an update without it hides the term
+(eu-parc/pubmate#17). It links to the definition it replaces in one of two ways:
 
-This adds an ``npx:supersedes`` triple to a plain nanopub, which is offline
-friendly. It does not fetch or key-check the superseded nanopub over the network
-(unlike ``nanopub.NanopubUpdate``); the caller is responsible for superseding
-only nanopubs signed with a matching key.
+* **supersede** -- ``npx:supersedes`` the previous nanopub. This invalidates it,
+  but only takes effect when both are signed with the same key.
+* **override** -- ``prov:wasDerivedFrom`` the previous nanopub, in the pubinfo.
+  For a previous definition signed with another key (another bot, an edit in
+  Nanodash): the newer definition wins in the vocabulary queries, as with
+  Nanodash's own overrides.
+
+This is offline friendly: it does not fetch or key-check the previous nanopub
+(unlike ``nanopub.NanopubUpdate``); the caller decides which link applies (see
+:mod:`pubmate.current`).
 """
 
 from __future__ import annotations
@@ -23,6 +29,7 @@ import nanopub
 import rdflib
 
 from nanopub.namespaces import NPX
+from rdflib.namespace import PROV
 
 from pubmate._nanopub_build import (
     UNSET as _UNSET,
@@ -36,12 +43,12 @@ from pubmate.defining import DEFAULT_LICENSE
 
 
 class SupersessionBuilder:
-    """Build an unsigned nanopub that supersedes an existing one.
+    """Build an unsigned nanopub that updates (supersedes or overrides) a definition.
 
     Configure once with a signing ``profile`` (omit it to build keyless for
-    validation, like the defining builder), then call :meth:`build` per
-    supersession. The assertion must use the term's fixed URIs; pass the URI of
-    the nanopub being superseded.
+    validation, like the defining builder), then call :meth:`build` per update.
+    The assertion must use the term's fixed URIs; pass the term it introduces
+    and the URI of the nanopub being superseded or overridden.
     """
 
     def __init__(
@@ -69,31 +76,36 @@ class SupersessionBuilder:
         self,
         assertion: rdflib.Graph,
         *,
-        supersedes_np_uri: str,
+        introduces: str,
+        supersedes_np_uri: Optional[str] = None,
+        overrides_np_uri: Optional[str] = None,
         suggester_orcid: Optional[str] = None,
         label: Optional[str] = None,
         license: Optional[str] = _UNSET,
         derived_from: Optional[str] = None,
-        introduces: Optional[str] = None,
     ) -> nanopub.Nanopub:
-        """Wrap an updated ``assertion`` into an unsigned superseding nanopub.
+        """Wrap an updated ``assertion`` into an unsigned updating nanopub.
 
         Args:
-            assertion: the term's updated graph, written against its fixed URI
-                (typically the original intrinsic properties plus the new links).
-            supersedes_np_uri: URI of the nanopub this one supersedes.
+            assertion: the term's updated graph, written against its fixed URI.
+            introduces: the term's URI, for pubinfo ``npx:introduces``.
+            supersedes_np_uri: the nanopub this one supersedes (same key).
+            overrides_np_uri: the nanopub this one overrides (another key),
+                linked with pubinfo ``prov:wasDerivedFrom``. Give exactly one of
+                the two.
             suggester_orcid: ORCID the assertion is attributed to.
             label: optional ``rdfs:label`` for the nanopub.
             license: pubinfo ``dct:license``; defaults to the builder's license,
                 pass ``None`` to omit.
-            derived_from: optional ``prov:wasDerivedFrom`` source.
-            introduces: pubinfo ``npx:introduces``; omitted by default since the
-                concept was already introduced by the superseded nanopub.
+            derived_from: optional ``prov:wasDerivedFrom`` source of the
+                assertion (provenance).
         """
         if len(assertion) == 0:
-            raise ValueError("assertion graph is empty; a supersession needs at least one triple.")
-        if not supersedes_np_uri:
-            raise ValueError("supersedes_np_uri is required.")
+            raise ValueError("assertion graph is empty; an update needs at least one triple.")
+        if not introduces:
+            raise ValueError("introduces is required: an update must introduce the term (pubmate#17).")
+        if bool(supersedes_np_uri) == bool(overrides_np_uri):
+            raise ValueError("give exactly one of supersedes_np_uri (same key) and overrides_np_uri (another key).")
 
         conf = build_conf(
             profile=self.profile,
@@ -107,9 +119,11 @@ class SupersessionBuilder:
         np = nanopub.Nanopub(conf=conf, assertion=relabel_blank_nodes(assertion))
         np_ref = np.metadata.namespace[""]
 
-        np.pubinfo.add((np_ref, NPX.supersedes, rdflib.URIRef(supersedes_np_uri)))
-        if introduces is not None:
-            np.pubinfo.add((np_ref, NPX.introduces, rdflib.URIRef(introduces)))
+        if supersedes_np_uri:
+            np.pubinfo.add((np_ref, NPX.supersedes, rdflib.URIRef(supersedes_np_uri)))
+        else:
+            np.pubinfo.add((np_ref, PROV.wasDerivedFrom, rdflib.URIRef(overrides_np_uri)))
+        np.pubinfo.add((np_ref, NPX.introduces, rdflib.URIRef(introduces)))
 
         effective_license = self.license if license is _UNSET else license
         add_label_and_license(np, np_ref=np_ref, label=label, license=effective_license)

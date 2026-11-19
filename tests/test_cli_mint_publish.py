@@ -232,3 +232,54 @@ def test_mint_publish_supersedes_a_drifted_term(tmp_path) -> None:
     assert after.thing_uri == before.thing_uri
     assert after.np_uri != before.np_uri
     assert after.fingerprint != before.fingerprint
+
+
+def test_mint_publish_updates_against_current_definition(tmp_path, monkeypatch) -> None:
+    import json
+
+    NPX = rdflib.Namespace("http://purl.org/nanopub/x/")
+    assertions = tmp_path / "assertions"
+    assertions.mkdir()
+    _assertion_graph(assertions / "caffeine.ttl")
+    out = tmp_path / "published"
+    idmap = tmp_path / "id-map.tsv"
+    args = ["-a", str(assertions), "--output-dir", str(out), "--id-map-file", str(idmap), "--dry-run"]
+
+    # Mint the term; its trig is what the network serves as the current definition.
+    assert CliRunner().invoke(cli, args).exit_code == 0
+    row = IdMap.from_tsv(idmap.read_text(encoding="utf-8"))[OLD_ID]
+    (published,) = out.glob("*.trig")
+    current_trig = published.read_bytes()
+    published.unlink()
+    query = "https://query.example/api/vocabulary"
+
+    def fake_fetch(url, *, accept, timeout, retries):
+        if url == query:
+            rows = [{"class": {"type": "uri", "value": row.thing_uri}, "np": {"type": "uri", "value": row.np_uri}}]
+            return json.dumps({"results": {"bindings": rows}}).encode()
+        assert url == f"{row.np_uri}.trig"
+        return current_trig
+
+    monkeypatch.setattr("pubmate.current.fetch_url", fake_fetch)
+    # A legacy row without fingerprint: no longer assumed unchanged.
+    idmap.write_text(
+        f"old_id\tthing_uri\tnp_uri\tfingerprint\n{OLD_ID}\t{row.thing_uri}\t{row.np_uri}\t\n", encoding="utf-8"
+    )
+    g = _assertion_graph()
+    s = rdflib.URIRef(OLD_ID)
+    g.remove((s, RDFS.label, rdflib.Literal("Caffeine")))
+    g.add((s, RDFS.label, rdflib.Literal("Caffeine (edited)")))
+    g.serialize(destination=assertions / "caffeine.ttl", format="turtle")
+
+    result = CliRunner().invoke(cli, [*args, "--current-query-url", query])
+
+    assert result.exit_code == 0, result.output
+    (update,) = out.glob("*.trig")
+    np = rdflib.Dataset()
+    np.parse(update, format="trig")
+    # Signed with another (dry-run) key than the current definition: an override.
+    assert list(np.quads((None, NPX.introduces, rdflib.URIRef(row.thing_uri), None)))
+    assert list(np.quads((None, PROV.wasDerivedFrom, rdflib.URIRef(row.np_uri), None)))
+    assert not list(np.quads((None, NPX.supersedes, None, None)))
+    after = IdMap.from_tsv(idmap.read_text(encoding="utf-8"))[OLD_ID]
+    assert after.np_uri != row.np_uri and after.fingerprint != ""
