@@ -1,4 +1,5 @@
 import rdflib
+from nanopub.namespaces import NPX
 from rdflib.namespace import RDFS
 
 from pubmate.defining import DefiningNanopubBuilder
@@ -96,6 +97,8 @@ def test_two_cycle_defers_one_and_supersedes():
     isomer_objs = set(s.nanopub.assertion.objects(rdflib.URIRef(new[s.term_id]), PEH.isIsomerOf))
     assert isomer_objs and all(str(o) in new.values() for o in isomer_objs)
     assert _no_old_id_objects(s.nanopub.assertion, old_uris)
+    # It introduces the term, or the vocabulary queries would drop it (pubmate#17).
+    assert (None, NPX.introduces, rdflib.URIRef(new[s.term_id])) in s.nanopub.pubinfo
 
     # The id-map points at the supersession (the latest version), so a future
     # re-issue supersedes it rather than the defining nanopub.

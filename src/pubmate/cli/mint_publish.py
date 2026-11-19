@@ -5,6 +5,7 @@ import click
 import rdflib
 
 from pubmate.cli._signing import resolve_signing
+from pubmate.current import QueryDefinitions
 from pubmate.defining import DefiningNanopubBuilder
 from pubmate.idmap import IdMap
 from pubmate.incremental import publish_incremental
@@ -56,6 +57,15 @@ logger = logging.getLogger(__name__)
 @click.option("--testsuite-key", default="rsa-key1", show_default=True, hidden=True)
 @click.option("--testsuite-ref", default="main", show_default=True, hidden=True)
 @click.option("--dry-run", is_flag=True, help="Sign only (offline); do not publish to the network.")
+@click.option(
+    "--current-query-url",
+    help=(
+        "Vocabulary query (SPARQL-JSON API URL with columns class and np) giving each term's current "
+        "definition, e.g. the Nanodash get-approved-classes-of-an-ontology-from-space-members query. "
+        "Changes are then detected against that definition, and updates supersede it (same key) or "
+        "override it (another key). Without it, changes are detected against the id-map only."
+    ),
+)
 @click.option("--glob", "pattern", default="*.ttl", show_default=True)
 def cli(
     assertion_folder: pathlib.Path,
@@ -76,16 +86,18 @@ def cli(
     testsuite_key: str,
     testsuite_ref: str,
     dry_run: bool,
+    current_query_url: str | None,
     pattern: str,
 ) -> None:
-    """Incrementally mint/supersede defining nanopubs from per-term assertions.
+    """Incrementally mint/update defining nanopubs from per-term assertions.
 
-    Each assertion is re-keyed onto the artifact-code placeholder. Per term, this
-    compares its identity fingerprint against the one recorded in --id-map-file:
-    a new term is minted, an unchanged term is skipped, and a *drifted* term
-    (content or wrapper changed) is superseded -- re-stated against its existing
-    thing URI in a nanopub that supersedes the recorded one, keeping the term's
-    identity. Published nanopubs (unless --dry-run) are written to --output-dir as
+    Each assertion is re-keyed onto the artifact-code placeholder. A new term is
+    minted, an unchanged term is skipped, and a changed term is re-stated against
+    its existing thing URI in an update that introduces it, keeping the term's
+    identity. With --current-query-url, "changed" and the update's link are
+    decided against the term's current definition on the network; without it,
+    against the fingerprint recorded in --id-map-file (see
+    pubmate.incremental). Published nanopubs (unless --dry-run) are written to --output-dir as
     <artifact-code>.trig and the updated old_id -> thing_uri/np_uri/fingerprint
     map is written to --id-map-file.
 
@@ -144,16 +156,25 @@ def cli(
     )
 
     minter = SequentialMinter(builder, default_suggester_orcid=default_suggester)
+    if current_query_url:
+        current = QueryDefinitions(current_query_url)
+    else:
+        current = None
+        logger.warning(
+            "No --current-query-url: changes are detected against the id-map only, and terms "
+            "without a recorded fingerprint are assumed unchanged."
+        )
     result = publish_incremental(
         terms,
         minter=minter,
         supersession_builder=supersession_builder,
         existing=existing,
         dry_run=dry_run,
+        current=current,
     )
 
-    # Write each minted/superseding nanopub as <artifact-code>.trig (its own code:
-    # for a defining nanopub that equals the thing code, for a supersession its own).
+    # Write each minted/updating nanopub as <artifact-code>.trig (its own code:
+    # for a defining nanopub that equals the thing code, for an update its own).
     output_dir.mkdir(parents=True, exist_ok=True)
     published = [(m.np_uri, m.nanopub) for m in result.minted.terms]
     published += [(s.np_uri, s.nanopub) for s in result.superseded]
@@ -167,7 +188,7 @@ def cli(
         logger.info("Wrote id-map (%d entries) -> %s", len(result.id_map), id_map_file)
 
     logger.info(
-        "Minted %d, superseded %d, skipped %d term(s)%s -> %s",
+        "Minted %d, updated %d, skipped %d term(s)%s -> %s",
         len(result.minted.terms),
         len(result.superseded),
         len(result.skipped),

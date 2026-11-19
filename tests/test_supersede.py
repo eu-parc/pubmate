@@ -30,12 +30,29 @@ def _mint_two():
     return batch
 
 
-def test_build_requires_supersedes_uri():
+def test_build_requires_exactly_one_previous_link():
+    builder = SupersessionBuilder()
+    thing = f"{NAMESPACE}RAxxx"
+    g = rdflib.Graph()
+    g.add((rdflib.URIRef(thing), RDFS.label, Literal("x")))
+    with pytest.raises(ValueError, match="exactly one"):
+        builder.build(g, introduces=thing, supersedes_np_uri="")
+    with pytest.raises(ValueError, match="exactly one"):
+        builder.build(
+            g,
+            introduces=thing,
+            supersedes_np_uri="https://w3id.org/np/RAa",
+            overrides_np_uri="https://w3id.org/np/RAb",
+        )
+
+
+def test_build_requires_introduces():
+    # Without npx:introduces the vocabulary queries drop the term (pubmate#17).
     builder = SupersessionBuilder()
     g = rdflib.Graph()
     g.add((rdflib.URIRef(f"{NAMESPACE}RAxxx"), RDFS.label, Literal("x")))
-    with pytest.raises(ValueError, match="supersedes_np_uri is required"):
-        builder.build(g, supersedes_np_uri="")
+    with pytest.raises(ValueError, match="introduces is required"):
+        builder.build(g, introduces="", supersedes_np_uri="https://w3id.org/np/RAoldnp")
 
 
 def test_supersedes_triple_and_pubinfo():
@@ -45,6 +62,7 @@ def test_supersedes_triple_and_pubinfo():
     g.add((thing, RDFS.label, Literal("A")))
     np = builder.build(
         g,
+        introduces=str(thing),
         supersedes_np_uri="https://w3id.org/np/RAoldnp",
         suggester_orcid=SUGGESTER,
         label="Updated A",
@@ -54,8 +72,21 @@ def test_supersedes_triple_and_pubinfo():
     assert (np_ref, RDFS.label, Literal("Updated A")) in np.pubinfo
     assert (np_ref, rdflib.URIRef("http://purl.org/dc/terms/license"), rdflib.URIRef(DEFAULT_LICENSE)) in np.pubinfo
     assert (None, PROV.wasAttributedTo, rdflib.URIRef(SUGGESTER)) in np.provenance
-    # No introduces by default for a supersession.
-    assert (None, NPX.introduces, None) not in np.pubinfo
+    # The update introduces the term, so the vocabulary queries keep listing it.
+    assert (np_ref, NPX.introduces, thing) in np.pubinfo
+    assert (np_ref, PROV.wasDerivedFrom, None) not in np.pubinfo
+
+
+def test_override_links_previous_definition_with_was_derived_from():
+    builder = SupersessionBuilder()
+    thing = rdflib.URIRef(f"{NAMESPACE}RAexample")
+    g = rdflib.Graph()
+    g.add((thing, RDFS.label, Literal("A")))
+    np = builder.build(g, introduces=str(thing), overrides_np_uri="https://w3id.org/np/RAothersnp")
+    np_ref = np.metadata.namespace[""]
+    assert (np_ref, PROV.wasDerivedFrom, rdflib.URIRef("https://w3id.org/np/RAothersnp")) in np.pubinfo
+    assert (np_ref, NPX.introduces, thing) in np.pubinfo
+    assert (None, NPX.supersedes, None) not in np.pubinfo
 
 
 def test_supersession_tags_nanopub_type_and_template():
@@ -65,7 +96,7 @@ def test_supersession_tags_nanopub_type_and_template():
     builder = SupersessionBuilder(nanopub_types=[type_uri], template=template_uri)
     g = rdflib.Graph()
     g.add((rdflib.URIRef(f"{NAMESPACE}RAexample"), RDFS.label, Literal("A")))
-    np = builder.build(g, supersedes_np_uri="https://w3id.org/np/RAoldnp")
+    np = builder.build(g, introduces=f"{NAMESPACE}RAexample", supersedes_np_uri="https://w3id.org/np/RAoldnp")
     np_ref = np.metadata.namespace[""]
     assert (np_ref, NPX.hasNanopubType, rdflib.URIRef(type_uri)) in np.pubinfo
     assert (np_ref, ntemplate.wasCreatedFromTemplate, rdflib.URIRef(template_uri)) in np.pubinfo
@@ -86,7 +117,7 @@ def test_supersession_preserves_fixed_uris_when_signed():
     updated.add((a_uri, PEH.relatedTo, b_uri))  # the new cross-term link
 
     builder = SupersessionBuilder()  # keyless -> offline signing
-    np = builder.build(updated, supersedes_np_uri=a_np, suggester_orcid=SUGGESTER)
+    np = builder.build(updated, introduces=a, supersedes_np_uri=a_np, suggester_orcid=SUGGESTER)
     np.sign()
 
     serialized = np.rdf.serialize(format="trig")

@@ -117,6 +117,30 @@ pubmate-mint-publish \
   --use-testsuite-keys
 ```
 
+Terms already in the id-map (or submitted under their minted URI) are updated
+when they changed: the update re-states the term under its existing URI and
+carries `npx:introduces` for it, which the vocabulary queries require. Pass the
+vocabulary query with `--current-query-url` so that this is decided against the
+term's **current definition on the network**, which may have been changed in
+Nanodash or by another bot since the id-map was written:
+
+- a term whose content equals its current definition is skipped;
+- an update supersedes the current definition when it was signed with the same
+  key, and overrides it (pubinfo `prov:wasDerivedFrom`) otherwise.
+
+```bash
+pubmate-mint-publish \
+  --assertion-folder assertions \
+  --namespace https://w3id.org/yourspace/term/ \
+  --output-dir published \
+  --id-map-file id-map.tsv \
+  --current-query-url "https://query.knowledgepixels.com/api/RA5rQSjX-6t_ccwhgZhxCpWryxuRjMFeCMXelxJYfxtdw/get-approved-classes-of-an-ontology-from-space-members?ontology=..." \
+  --dry-run
+```
+
+Without `--current-query-url`, changes are detected with the fingerprint in the
+id-map and updates supersede the nanopub the id-map records.
+
 Real publication uses the bot/personal key instead of `--use-testsuite-keys`:
 
 ```bash
