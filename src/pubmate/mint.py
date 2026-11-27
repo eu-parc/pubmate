@@ -1,12 +1,11 @@
 import json
 import hashlib
 import logging
-import os
 import re
 
 from typing import Optional, Set
 from urllib.parse import urlsplit
-from ulid import ULID, constants
+from ulid import ULID
 from uuid import uuid4
 
 # Configure logging
@@ -87,9 +86,7 @@ class IdentifierGenerator:
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def random_ulid(self) -> str:
-        timestamp = ULID.provider.timestamp().to_bytes(constants.TIMESTAMP_LEN, "big")
-        randomness = os.urandom(constants.RANDOMNESS_LEN)
-        return str(ULID.from_bytes(timestamp + randomness))
+        return str(ULID())
 
     def generate_id(
         self,
