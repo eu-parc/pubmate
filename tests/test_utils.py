@@ -62,3 +62,22 @@ def test_works_after_signing():
     trig = serialize_nanopub(np)
     assert _graph_block_order(trig) == list(CANONICAL_ORDER)
     assert "~~~ARTIFACTCODE~~~" not in trig
+
+
+def test_multiline_literals_keep_their_text():
+    # Re-indenting the graph blocks must not touch the inside of a """...""" literal:
+    # leading spaces, trailing spaces, blank lines and embedded quotes stay as they are.
+    text = 'first line  \nfeedback: "quoted"\n\n    indented line\nends with a quote"'
+    builder = DefiningNanopubBuilder(NAMESPACE)
+    assertion = builder.make_assertion(
+        [(RDF.type, RDFS.Class), (RDFS.label, Literal("Caffeine")), (RDFS.comment, Literal(text))]
+    )
+    np = builder.build(assertion, suggester_orcid=SUGGESTER, label="Definition of Caffeine")
+    np.sign()
+
+    reparsed = rdflib.Dataset()
+    reparsed.parse(data=serialize_nanopub(np), format="trig")
+
+    assert set(reparsed.quads()) == set(np.rdf.quads())
+    (comment,) = (o for _, p, o, _ in reparsed.quads((None, RDFS.comment, None, None)))
+    assert str(comment) == text

@@ -96,12 +96,24 @@ def serialize_nanopub(np: nanopub.Nanopub, *, prefixes: Optional[Mapping[str, st
             graph.add(triple)
 
         body: list[str] = []
+        in_long_literal = False
         for line in graph.serialize(format="turtle").splitlines():
-            stripped = line.strip()
-            if stripped.startswith("@prefix"):
-                prefix_lines.add(stripped)
-            elif stripped:
-                body.append("    " + line.rstrip())
+            # rdflib writes literals that contain newlines as """...""", with any
+            # \"\"\" inside escaped, so the unescaped triple quotes in a line toggle
+            # between code and literal text. Lines that start inside such a literal
+            # are its content and are kept exactly; a line that opens one keeps its
+            # trailing spaces, which belong to the literal too.
+            opens_or_closes = line.count('"""') % 2 == 1
+            if in_long_literal:
+                body.append(line)
+            else:
+                stripped = line.strip()
+                if stripped.startswith("@prefix"):
+                    prefix_lines.add(stripped)
+                elif stripped:
+                    body.append("    " + (line if opens_or_closes else line.rstrip()))
+            if opens_or_closes:
+                in_long_literal = not in_long_literal
 
         blocks.append(f"{graph_id.n3(namespace_manager)} {{\n" + "\n".join(body) + "\n}")
 
